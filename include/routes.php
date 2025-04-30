@@ -352,75 +352,7 @@
             $result = render('corrispettivi/corrispettivi', $content);
             return $result;
         });
-        /*Route corrispettivi
-        $router->addRoute('/corrispettivi/generazione_multipla', function () use ($database, $dominio, $titolo, $apps, $menu)  {
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $u_id = $_POST['u_id'];
-                $total_amount = $_POST['total_amount'];
-
-                $start_date_iso = $_POST['data_inizio']; // Esempio: "2025-01-01T07:05"
-                $end_date_iso = $_POST['data_fine'];    // Esempio: "2025-01-10T18:30"
-                // Converte il formato "YYYY-MM-DDTHH:MM" in "d/m/Y H:i"
-                $start_date = DateTime::createFromFormat("Y-m-d\TH:i", $start_date_iso)->format("d/m/Y H:i");
-                $end_date = DateTime::createFromFormat("Y-m-d\TH:i", $end_date_iso)->format("d/m/Y H:i");
-                
-                $email = "no-reply@noreply.it";
-                $num_entries = $_POST['num_corrispettivi'];
-                //echo"<pre>";print_r($_POST);echo"</pre>";
-                $corrispettivi = generaCorrispettivi($u_id, $total_amount, $start_date, $end_date, $email, $num_entries);
-                //echo"<pre>";print_r($corrispettivi);echo"</pre>"; exit();
-                foreach($corrispettivi as $corrispettivo){
-                    $database->insert('corrispettivo', $corrispettivo);
-                }
-            }
-            $query="SELECT 
-                        c.id,
-                        CONCAT(u.nome, ' ', u.cognome) AS utente,
-                        c.descrizione AS descrizione,
-                        c.corrispettivo AS valore, 
-                        DATE_FORMAT(c.data, '%d/%m/%Y') AS data,
-                        CASE 
-                            WHEN c.mexal = 0 THEN 'non inviato'
-                            WHEN c.mexal = 1 THEN DATE_FORMAT(c.data_invio, '%d/%m/%Y')
-                            ELSE 'stato sconosciuto'
-                        END AS Mexal
-                    FROM 
-                        corrispettivo AS c
-                    INNER JOIN 
-                        users AS u
-                    ON 
-                        u.id = c.u_id
-                    WHERE 
-                        u.ruolo = 3 AND
-                        u.status = 'attivo'";
-                        
-            if (isset($_GET['utente']) && $_GET['utente']!='*'){
-                $query.= ' AND c.u_id = '.$_GET['utente'];
-            }
-            if (isset($_GET['tipo']) && $_GET['tipo']!=''){
-                $query.= ' AND c.mexal = '.$_GET['tipo'];
-            }
-
-            //echo $query; exit();
-            $corrispettivi=$database->query($query);
-            $where_u='ruolo = 3';
-            $utenti=$database->select('users','*', $where_u);
-            $content = [
-                'dominio' => $dominio,
-                'titolo' => $titolo,
-                'title' => 'Generazione Corrispettivi Multipli',
-                'serp' => '/corrispettivi/generazione_multipla',
-                'menu' => $menu['corrispettivi'],
-                'apps' => $apps,
-                'h1' => 'CRM di gestione aziendale',
-                'h2' => 'Corrispettivi',
-                'date' => array(),
-                'utenti' => $utenti,
-                'content' => $corrispettivi
-            ];
-            $result = render('corrispettivi/corrispettivi_multipli', $content);
-            return $result;
-        });*/
+        /*Route generazione automatica di incassi e corrispettivi*/
         $router->addRoute('/corrispettivi/ridistribuisci-incassi', function () use ($database, $dominio, $titolo, $apps, $menu) {
             //inizzializza variabili locali
             $corrispettivi="";
@@ -812,6 +744,198 @@
             return false; // o throw $e;
         }
     }
+
+    //Funzione per la registrazione dei corrispettivi
+    /**
+     * Invia una registrazione di prima nota all'API Mexal.
+     *
+     * @param Database $database Oggetto per l'interazione con il database (necessario per le credenziali).
+     * @param float $cont Importo totale dei contanti incassati (lordo).
+     * @param int $id_azienda ID dell'azienda per cui registrare la nota.
+     * @param string $data Data della registrazione nel formato 'Ymd' (es. '20231027').
+     * @param string $dnsapi URL base dell'API (es. "https://services.passepartout.cloud/webapi/risorse/").
+     * @param string $codiceAziendaGestionale Codice azienda da usare nell'header Coordinate-Gestionale (es. 'IMP').
+     * @param string $causaleContabile Causale contabile (es. 'CO').
+     * @param string $contoCassa Codice conto cassa (es. '201.00001').
+     * @param string $contoRicavo Codice conto ricavo (es. '807.00002').
+     * @param string $contoIva Codice conto IVA (es. '415.00012').
+     * @param float $aliquotaIva Valore aliquota IVA (es. 22.0).
+     *
+     * @return array Array associativo con l'esito dell'operazione:
+     *               [
+     *                   'esito' => 'ok' | 'ko',
+     *                   'id_primanota' => int|null, // ID restituito dall'API in caso di successo
+     *                   'errore' => string|null    // Messaggio di errore in caso di fallimento
+     *               ]
+     */
+    function scritturaPrimaNota(
+        Database $database,
+        float $cont,
+        int $id_azienda,
+        string $data,
+        string $dnsapi,
+        string $codiceAziendaGestionale = 'IMP', // Valore di default, può essere sovrascritto
+        string $causaleContabile = 'CO',
+        string $contoCassa = '201.00001',
+        string $contoRicavo = '807.00002',
+        string $contoIva = '415.00012',
+        float $aliquotaIva = 22.0
+    ): array {
+
+        // Inizializza l'array di risposta con valori di default per l'errore
+        $risposta_array = [
+            'esito' => 'ko',
+            'id_primanota' => null,
+            'errore' => 'Errore non specificato durante l\'esecuzione.'
+        ];
+
+        // --- 1. Recupero Credenziali API ---
+        try {
+            // Assicurati che l'ID azienda sia un intero per sicurezza
+            $id_azienda_int = (int)$id_azienda;
+            $credenziali = $database->select('aziende', 'userapi, pwdapi, dominioapi', 'id=' . $id_azienda_int);
+
+            if (empty($credenziali) || !$credenziali[0]['userapi'] || !$credenziali[0]['pwdapi'] || !$credenziali[0]['dominioapi']) {
+                $risposta_array['errore'] = "Azienda con ID $id_azienda_int non trovata o credenziali API incomplete nel database.";
+                return $risposta_array; // Esce dalla funzione restituendo l'errore
+            }
+
+            $usernameapi = $credenziali[0]['userapi'];
+            $passwordapi = $credenziali[0]['pwdapi'];
+            $dominioapi = $credenziali[0]['dominioapi'];
+
+        } catch (Exception $e) {
+            $risposta_array['errore'] = "Errore durante il recupero delle credenziali dal DB: " . $e->getMessage();
+            return $risposta_array; // Esce dalla funzione restituendo l'errore
+        }
+
+        // --- 2. Preparazione Dati e Header API ---
+        $credentialsapi = base64_encode($usernameapi . ':' . $passwordapi);
+        // Assicurati che $dominioapi non sia vuoto e costruisci l'header
+        if (empty($dominioapi)) {
+            $risposta_array['errore'] = "Dominio API non configurato per l'azienda ID $id_azienda_int.";
+            return $risposta_array;
+        }
+        $authHeaderapi = 'Authorization: Passepartout ' . $credentialsapi . ' Dominio=' . $dominioapi;
+        $contentTypeHeader = 'Content-type: application/json';
+        $annoCorrente = date('Y');
+        $coordinateGestionaleHeader = 'Coordinate-Gestionale: Azienda=' . $codiceAziendaGestionale . ' Anno=' . $annoCorrente;
+
+        // Endpoint specifico per la prima nota
+        $endpoint = "prima-nota/"; // Assicurati che sia corretto secondo la documentazione API
+
+        // Calcolo importi scorporando l'IVA
+        $moltiplicatoreIva = 1 + ($aliquotaIva / 100);
+        $rica = round($cont / $moltiplicatoreIva, 2) * -1; // Importo ricavo (negativo)
+        $iva = round($cont + $rica, 2) * -1;           // Importo IVA (negativo)
+        // L'importo $cont per la cassa deve essere positivo
+        $contCassa = abs($cont);
+
+        // --- 3. Costruzione Payload JSON ---
+        // Nota: La struttura esatta dipende dalle specifiche API di Mexal.
+        // Questa struttura è basata sul tuo esempio. Potrebbe necessitare aggiustamenti.
+        $entita = [
+            "data_registr" => $data,
+            "descrizione" => "Incasso corrispettivi del " . DateTime::createFromFormat('Ymd', $data)->format('d/m/Y'), // Descrizione più utile
+            "cau_contabile" => $causaleContabile,
+            "rstro_prot_iva" => 'C', // Registro Corrispettivi
+            "serie_prot" => 1,
+            "nr_protocollo" => 0,    // Solitamente assegnato dal gestionale
+            'nr_documento' => 0,     // Potrebbe essere necessario un numero progressivo o altro
+            'data_documento' => $data,
+            // Righe contabili: Cassa (Dare), Ricavo (Avere), IVA (Avere)
+            'codice_conto' => [
+                ['0' => 1, '1' => $contoCassa],  // Riga 1: Cassa
+                ['0' => 2, '1' => $contoRicavo], // Riga 2: Ricavo
+                ['0' => 3, '1' => $contoIva]     // Riga 3: IVA ns/debito
+            ],
+            'importo_riga' => [
+                ['0' => 1, '1' => $contCassa], // Dare Cassa (positivo)
+                ['0' => 2, '1' => $rica],      // Avere Ricavo (negativo)
+                ['0' => 3, '1' => $iva]        // Avere IVA (negativo)
+            ],
+            // Dettagli IVA sulla riga del ricavo (riga 2)
+            'imponibile_iva' => [
+                ['riga' => 2, 'castelletto' => 1, 'imponibile' => abs($rica)] // Imponibile positivo
+            ],
+            'imposta_iva' => [
+                ['0' => 2, '1' => 1, '2' => abs($iva)] // Imposta positiva
+            ],
+            'imposta_iva' => [
+                // Formato 'XX.X' o 'XX,X' dipende da API
+                ['0' => 2, '1' => 1, '2' => number_format($aliquotaIva, 1, ',', '')]
+            ]
+        ];
+        $entita_json = json_encode($entita);
+
+        if ($entita_json === false) {
+            $risposta_array['errore'] = "Errore nella codifica JSON del payload: " . json_last_error_msg();
+            return $risposta_array;
+        }
+
+        // --- 4. Esecuzione Chiamata cURL ---
+        $url = rtrim($dnsapi, '/') . '/' . ltrim($endpoint, '/'); // Costruzione URL sicura
+
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1); // Restituisce la risposta come stringa
+        curl_setopt($curl, CURLOPT_HEADER, 0);         // Non includere header nella risposta
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 1); // Segui eventuali redirect
+        // ATTENZIONE: Disabilitare la verifica SSL è rischioso in produzione.
+        // Usare solo se strettamente necessario e si è consapevoli dei rischi.
+        // Sarebbe meglio configurare il server per accettare il certificato.
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0); // 0 è più corretto di FALSE per questa opzione
+        curl_setopt($curl, CURLOPT_POST, true);        // Metodo POST
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $entita_json); // Body della richiesta
+        curl_setopt($curl, CURLOPT_HTTPHEADER, [       // Array di header
+            $authHeaderapi,
+            $contentTypeHeader,
+            $coordinateGestionaleHeader
+        ]);
+        curl_setopt($curl, CURLOPT_TIMEOUT, 30); // Timeout per la richiesta (es. 30 secondi)
+
+        $response = curl_exec($curl);
+        $http_code = curl_getinfo($curl, CURLINFO_HTTP_CODE); // Ottieni codice stato HTTP
+        $curl_error = curl_error($curl); // Ottieni eventuale errore cURL
+
+        curl_close($curl);
+
+        // --- 5. Gestione Risposta ---
+        if ($response === false) {
+            // Errore a livello cURL (rete, timeout, etc.)
+            $risposta_array['errore'] = 'Errore cURL: ' . $curl_error;
+        } else {
+            // La richiesta cURL è andata a buon fine, analizza la risposta HTTP e JSON
+            $resp_array_api = json_decode($response, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                // La risposta non è JSON valido
+                $risposta_array['errore'] = "Errore decodifica JSON dalla risposta API (HTTP $http_code): " . json_last_error_msg() . ". Risposta ricevuta (parziale): " . substr($response, 0, 500);
+            } elseif ($http_code >= 200 && $http_code < 300 && isset($resp_array_api['id'])) {
+                // Successo! (Codice HTTP 2xx e ID presente nel JSON)
+                $risposta_array['esito'] = 'ok';
+                $risposta_array['id_primanota'] = (int)$resp_array_api['id']; // Assicurati sia un intero
+                $risposta_array['errore'] = null; // Nessun errore
+            } else {
+                // Errore restituito dall'API (HTTP non 2xx o JSON di errore)
+                $apiErrorMessage = 'Errore sconosciuto dall\'API';
+                if (isset($resp_array_api['error']['message'])) {
+                    $apiErrorMessage = $resp_array_api['error']['message'];
+                } elseif (isset($resp_array_api['message'])) { // Alcune API usano 'message'
+                    $apiErrorMessage = $resp_array_api['message'];
+                } elseif (is_string($response) && strlen($response) < 500) { // Se non è JSON ma è breve, mostrala
+                    $apiErrorMessage = $response;
+                }
+                $risposta_array['errore'] = "Errore API (HTTP $http_code): " . $apiErrorMessage;
+                // id_primanota rimane null
+            }
+        }
+
+        // --- 6. Restituzione Risultato ---
+        return $risposta_array;
+    }
+
     
 
 
