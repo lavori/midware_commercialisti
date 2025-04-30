@@ -63,32 +63,25 @@
             return 'unknown/empty';
         }
 
-        // Get the first value (which should be an array in both valid cases)
-        reset($menuSection); // Ensure pointer is at the start
+        reset($menuSection); 
         $firstValue = current($menuSection);
 
         if (!is_array($firstValue) || empty($firstValue)) {
-            return 'unknown/empty'; // First value isn't an array or is empty
+            return 'unknown/empty'; 
         }
-
-        // Get the first element *within* the $firstValue array
-        reset($firstValue); // Ensure pointer is at the start of the inner array
+        
+        reset($firstValue); 
         $innerElement = current($firstValue);
-        $innerKey = key($firstValue); // Get the key of the inner element
+        $innerKey = key($firstValue); 
 
-        // Check the type of the inner element and its key
         if (is_array($innerElement) && is_string($innerKey)) {
-            // Example: $firstValue = ['Gestione corrispettivi' => [url, icon, color], ...]
-            // $innerElement is the array [url, icon, color]
-            // $innerKey is the string 'Gestione corrispettivi'
-            return 'multi-level'; // Like 'corrispettivi'
+            
+            return 'multi-level'; 
         } elseif (is_string($innerElement) && is_int($innerKey) && $innerKey === 0) {
-            // Example: $firstValue = ['/users', 'users', 'azure']
-            // $innerElement is the string '/users'
-            // $innerKey is the integer 0
-            return 'single-level'; // Like 'users'
+            
+            return 'single-level'; '
         }
 
-        return 'unknown/empty'; // Structure doesn't match expected patterns
+        return 'unknown/empty'; 
     }
 ?>
