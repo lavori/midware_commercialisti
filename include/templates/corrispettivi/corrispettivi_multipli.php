@@ -1,9 +1,9 @@
 <div class="nk-block-head nk-block-head-sm">
     <div class="nk-block-between">
         <div class="nk-block-head-content">
-            <h1 class="page-title">Genera Corrispettivi</h1>
+            <h1 class="page-title">Genera Incassi</h1>
             <div class="nk-block-des text-soft">
-                <h2>Inserisci i dati per generare i corrispettivi</h2>
+                <h2>Inserisci i dati per generare Incassi</h2>
             </div>
         </div>
     </div>
@@ -12,7 +12,7 @@
     <div class="card card-bordered card-preview">
         <div class="card-inner">
             <div class="card-head">
-                <h6 class="title">Dati Corrispettivi</h6>
+                <h6 class="title">Dati Incassi</h6>
             </div>
             <form action="/corrispettivi/ridistribuisci-incassi" method="POST" class="form-validate">
                 <input type="hidden" id="anno" name="anno" value="<?php echo date('Y'); ?>">
@@ -40,7 +40,7 @@
                     </div>
                     <div class="col-4">
                         <div class="form-group">
-                            <label class="form-label" for="incassoMensile">Incasso Mensile</label>
+                            <label class="form-label" for="incassoMensile">Incasso Mensile per tassista</label>
                             <div class="form-control-wrap">
                                 <div class="form-icon form-icon-left">
                                     <em class="icon ni ni-sign-eur"></em>
@@ -53,7 +53,7 @@
                         <div class="form-group">
                             <label class="form-label" for="submit">&nbsp;</label>
                             <div class="form-control-wrap">
-                                <button type="submit" class="btn btn-primary" id="submit">Genera Corrispettivi</button>
+                                <button type="submit" class="btn btn-primary" id="submit">Genera Incassi</button>
                             </div>
                         </div>
                     </div>

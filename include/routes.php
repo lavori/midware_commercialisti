@@ -595,7 +595,7 @@
                 echo "Errore durante l'inserimento dei dati: " . $e->getMessage();
             }
         });
-    };
+    }; 
 
 
     // Controllo di esistenza

@@ -26,9 +26,15 @@ $menu=array(
         'Utenti' => array('/users','users','azure')
     ),
     'corrispettivi' => array(
-        'Gestione corrispettivi' => array('/corrispettivi','coins','primary'),
-        'Generazione corrispettivi' => array('/corrispettivi/corrispettivi_multipli','setting','primary')
-    ),
+        'corrispettivi operatori' => array(
+            'Gestione corrispettivi' => array('/corrispettivi','coins','primary'),
+            'Generazione corrispettivi' => array('/corrispettivi/corrispettivi_multipli','setting','primary')
+        ),
+        'corrispettivi tassisti' => array(
+            'Gestione corrispettivi' => array('/corrispettivi','coins','primary'),
+            'Generazione corrispettivi' => array('/corrispettivi/corrispettivi_multipli','setting','primary')
+        )
+    )
 );
 
 $prepath="C:\\xampp\\video\\";
