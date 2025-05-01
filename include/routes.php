@@ -724,8 +724,7 @@
 
         return false; // Non esistono incassi né corrispettivi
     }
-    /**
-     * Calcola le festività italiane per un dato anno.
+    /* Calcola le festività italiane per un dato anno.
      *
      * @param int $year L'anno per cui calcolare le festività.
      * @return array Un array di date ('Y-m-d') delle festività.
@@ -763,6 +762,7 @@
             $holidays = getFestivitaItaliane($annoRiferimento);
             // echo "Festività per $annoRiferimento: <pre>" . print_r($holidays, true) . "</pre>"; // Debug
 
+            //Inserire al termine del task di variazione registrazione tassisiti il controllo della data fine rapporto
             $tassisti = $database->select("tassisti", ["id", "`Turni di lavoro`"]);
     
             foreach ($tassisti as $tassista) {

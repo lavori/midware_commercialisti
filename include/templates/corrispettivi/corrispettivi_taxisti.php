@@ -167,6 +167,13 @@
                                                             <span>Visualizza dettagli</span>
                                                         </a>
                                                     </li>
+                                                    <?php /* Gestire l'apertura di questo modale con relative funzioni */ ?>
+                                                    <li>
+                                                        <a style="cursor: pointer;" onClick="apriModal('Dettaglio Corrispettivo','Gestione corrispettivi','corrispettivi/dettaglio_corrispettivo','<?php echo $v['data']; ?>','1')">
+                                                            <em class="icon ni ni-edit"></em>
+                                                            <span>Modifica Corrispettivo</span>
+                                                        </a>
+                                                    </li>
                                                 </ul>
                                             </div>
                                         </div>

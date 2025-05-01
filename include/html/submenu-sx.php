@@ -9,7 +9,8 @@
     // Divide il percorso in parti
     $pathParts = explode('/', trim($path, '/'));
     $sub_c=$pathParts[0];
-
+    $current_serp='/'.$pathParts[0];
+    if(isset($pathParts[1]) && $pathParts[1]!='') $current_serp.='/'.$pathParts[1];
     
 ?> 
 <div class="nk-sidebar" data-content="sidebarMenu">
@@ -23,14 +24,20 @@
             <li class="nk-menu-heading">
                 <h6 class="overline-title text-primary-alt"><?php echo $key;?> </h6>
             </li><!-- .nk-menu-heading -->
-            <?php foreach ($submenu as $key1 => $value): ?>
-                <li class="nk-menu-item active current-page">
+            <?php 
+                foreach ($submenu as $key1 => $value): 
+                    $style_add='';
+                    if($current_serp==$value[0]) $style_add="active current-page";
+            ?>
+                <li class="nk-menu-item <?php echo $style_add; ?>">
                     <a href="<?php echo $value[0]; ?>" class="nk-menu-link">
                         <span class="nk-menu-icon"><em class="icon ni ni-<?php echo $value[1]; ?>"></em></span>
                         <span class="nk-menu-text"><?php echo $key1; ?> </span>
                     </a>
                 </li><!-- .nk-menu-item -->
-            <?php endforeach; ?>
+            <?php 
+                endforeach; 
+            ?>
         </ul><!-- .nk-menu -->  
         <hr>
     <?php 
@@ -41,14 +48,20 @@
             <li class="nk-menu-heading">
                 <h6 class="overline-title text-primary-alt"><?php echo $title;?> </h6>
             </li><!-- .nk-menu-heading -->
-            <?php foreach ($menu as $key1 => $value): ?>
-                <li class="nk-menu-item active current-page">
+            <?php 
+                foreach ($menu as $key1 => $value): 
+                    $style_add='';
+                    if($current_serp==$value[0]) $style_add="active current-page";
+            ?>
+                <li class="nk-menu-item <?php echo $style_add; ?>">
                     <a href="<?php echo $value[0]; ?>" class="nk-menu-link">
                         <span class="nk-menu-icon"><em class="icon ni ni-<?php echo $value[1]; ?>"></em></span>
                         <span class="nk-menu-text"><?php echo $key1; ?> </span>
                     </a>
                 </li><!-- .nk-menu-item -->
-            <?php endforeach; ?>
+            <?php 
+                endforeach; 
+            ?>
         </ul><!-- .nk-menu -->  
         <hr>
     <?php
