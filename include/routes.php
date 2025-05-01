@@ -397,7 +397,7 @@
                 'date' => array(),
                 'content' => $corrispettivi
             ];
-            $result = render('corrispettivi/corrispettivi_multipli', $content);
+            $result = render('corrispettivi/generazione_incassi_corrispettivi', $content);
             return $result;
         });
 
@@ -620,111 +620,234 @@
         return false; // Non esistono incassi né corrispettivi
     }
     // Ridistribuzione Incassi
+    /**
+     * Calcola le festività italiane per un dato anno.
+     *
+     * @param int $year L'anno per cui calcolare le festività.
+     * @return array Un array di date ('Y-m-d') delle festività.
+     */
+    function getItalianHolidays(int $year): array {
+        $easterDate = easter_date($year); // Timestamp di Pasqua
+        $easterMonday = strtotime('+1 day', $easterDate); // Timestamp di Lunedì dell'Angelo
+
+        $holidays = [
+            date('Y-m-d', mktime(0, 0, 0, 1, 1, $year)),   // Capodanno
+            date('Y-m-d', mktime(0, 0, 0, 1, 6, $year)),   // Epifania
+            date('Y-m-d', $easterMonday),                  // Lunedì dell'Angelo
+            date('Y-m-d', mktime(0, 0, 0, 4, 25, $year)),  // Festa della Liberazione
+            date('Y-m-d', mktime(0, 0, 0, 5, 1, $year)),   // Festa dei Lavoratori
+            date('Y-m-d', mktime(0, 0, 0, 6, 2, $year)),   // Festa della Repubblica
+            date('Y-m-d', mktime(0, 0, 0, 8, 15, $year)),  // Ferragosto
+            date('Y-m-d', mktime(0, 0, 0, 11, 1, $year)),  // Ognissanti
+            date('Y-m-d', mktime(0, 0, 0, 12, 8, $year)),  // Immacolata Concezione
+            date('Y-m-d', mktime(0, 0, 0, 12, 25, $year)), // Natale
+            date('Y-m-d', mktime(0, 0, 0, 12, 26, $year)), // Santo Stefano
+        ];
+
+        return $holidays;
+    }
     function ridistribuisciIncassiRoute(Database $database, int $meseRiferimento, int $annoRiferimento, float $incassoMensile) {
         error_reporting(E_ALL);
         ini_set('display_errors', 1);
         $database->beginTransaction();
         try {
             $numeroGiorni = cal_days_in_month(CAL_GREGORIAN, $meseRiferimento, $annoRiferimento);
-            $incassiGiornalieri = [];
-    
+            $incassiGiornalieri = []; // Totale per giorno per tabella corrispettivi
+
+            // Ottieni le festività italiane per l'anno di riferimento una sola volta
+            $holidays = getItalianHolidays($annoRiferimento);
+            // echo "Festività per $annoRiferimento: <pre>" . print_r($holidays, true) . "</pre>"; // Debug
+
             $tassisti = $database->select("tassisti", ["id", "`Turni di lavoro`"]);
     
             foreach ($tassisti as $tassista) {
                 $tassistaId = $tassista['id'];
                 // Decodifica dei turni
                 $turni = unserialize($tassista['Turni di lavoro']);
-    
+                $turni = [];
+                try {
+                    // Aggiungi @ per sopprimere warning se unserialize fallisce
+                    $decodedTurni = @unserialize($tassista['Turni di lavoro']);
+                    if ($decodedTurni !== false && is_array($decodedTurni)) {
+                        $turni = $decodedTurni;
+                    } else {
+                         error_log("ATTENZIONE: Impossibile decodificare i turni per il tassista $tassistaId. Valore: " . $tassista['Turni di lavoro']);
+                         // echo "  ATTENZIONE: Impossibile decodificare i turni per il tassista $tassistaId. Trattati come vuoti.<br>"; // Mantieni se necessario per UI
+                    }
+                } catch (Exception $e) {
+                     error_log("Eccezione durante unserialize per tassista $tassistaId: " . $e->getMessage());
+                     // echo "  ECCEZIONE: Errore decodifica turni per tassista $tassistaId.<br>"; // Mantieni se necessario per UI
+                }
+
                 // Assicurati che $turni sia un array (gestisci il caso di null o errore di decodifica)
                 if (!is_array($turni)) {
-                    $turni = []; // o log di errore, a seconda della tua strategia di gestione degli errori
+                    // Logga l'errore invece di fare echo direttamente, se possibile
+                    error_log("ATTENZIONE: Impossibile decodificare i turni per il tassista $tassistaId. Trattati come vuoti.");
                     echo "  ATTENZIONE: Impossibile decodificare i turni per il tassista $tassistaId. Trattati come vuoti.<br>";
                 }
-                $incassoGiornalieroTassista = [];
-                $incassoTotaleRidistribuito = 0;
-                $giorniLavorativi = [];
-    
+                $incassoGiornalieroTassista = []; // Incasso per questo tassista per giorno
+                $incassoTotaleRidistribuitoTassista = 0; // Totale ridistribuito per questo tassista
+                $giorniLavorativiTassista = []; // Giorni lavorativi validi per questo tassista
+
+                // echo "--- Tassista ID: $tassistaId, Turni: " . implode(', ', $turni) . " ---<br>"; // Debug
+
                 for ($i = 1; $i <= $numeroGiorni; $i++) {
                     $data = new DateTime("$annoRiferimento-$meseRiferimento-$i");
-                    $giornoSettimana = date('D', $data->getTimestamp());
-    
-                    if (in_array($giornoSettimana, $turni)) {
-                        $dataLavorativa = $data->format('Y-m-d');
-                        $giorniLavorativi[] = $dataLavorativa;
+                    $timestamp = $data->getTimestamp();
+                    $giornoSettimanaNum = (int)date('N', $timestamp); // 1 (Lunedì) a 7 (Domenica)
+                    $giornoSettimanaAbbr = date('D', $timestamp); // Mon, Tue, etc.
+                    $dataFormattata = $data->format('Y-m-d');
+
+                    // Verifica le condizioni:
+                    // 1. È nel turno del tassista?
+                    $isInShift = !empty($turni) && is_array($turni) && in_array($giornoSettimanaAbbr, $turni);
+                    // 2. È un giorno feriale (Lunedì-Venerdì)?
+                    $isWeekday = ($giornoSettimanaNum >= 1 && $giornoSettimanaNum <= 5);
+                    // 3. NON è una festività italiana?
+                    $isHoliday = in_array($dataFormattata, $holidays);
+
+                    // Debug condizioni (decommenta per vedere i controlli giorno per giorno)
+                    // echo "Data: $dataFormattata ($giornoSettimanaAbbr - $giornoSettimanaNum) -> InShift: " . ($isInShift ? 'SI' : 'NO') . ", Weekday: " . ($isWeekday ? 'SI' : 'NO') . ", Holiday: " . ($isHoliday ? 'SI' : 'NO') . "<br>";
+
+                    if ($isInShift && $isWeekday && !$isHoliday) {
+                        $giorniLavorativiTassista[] = $dataFormattata;
+                        // echo "  -> AGGIUNTO a giorniLavorativiTassista<br>"; // Debug
+                    } else {
+                        // echo "  -> NON AGGIUNTO (Motivo: Turno=$isInShift, Feriale=$isWeekday, Festivo=$isHoliday)<br>"; // Debug
                     } 
                 }
     
-                if (empty($giorniLavorativi)) {
+                if (empty($giorniLavorativiTassista)) {
+                    // echo "Nessun giorno lavorativo valido per tassista $tassistaId nel periodo.<br>"; // Debug
                     continue;
                 }
     
-                $incassoMedioGiornaliero = $incassoMensile / count($giorniLavorativi);
-                $incassoResiduo = $incassoMensile;
-    
-                foreach ($giorniLavorativi as $dataLavorativa) {
-                    $variazione = rand(-1500, 1500) / 10000;
-                    $incassoGiornaliero = round($incassoMedioGiornaliero * (1 + $variazione), 2);
-    
-                    if ((int)($incassoGiornaliero * 10) % 10 !== 0) {
-                        $incassoGiornaliero = round($incassoGiornaliero, 1);
-                    }
+                // echo "Giorni Lavorativi Validi per Tassista $tassistaId: <pre>" . print_r($giorniLavorativiTassista, true) . "</pre>"; // Debug
+
+                // Calcola l'incasso medio solo sui giorni lavorativi effettivi del tassista
+                $numeroGiorniLavorativiTassista = count($giorniLavorativiTassista);
+                $incassoMedioGiornaliero = $incassoMensile / $numeroGiorniLavorativiTassista;
+
+                // Distribuzione e accumulo
+                foreach ($giorniLavorativiTassista as $dataLavorativa) {
+                    // Calcola variazione e incasso giornaliero
+                    // (Usa mt_rand per una migliore casualità rispetto a rand)
+                    $variazione = mt_rand(-1500, 1500) / 10000;
+                    // Assicura che l'incasso non sia negativo
+                    $incassoGiornaliero = max(0, round($incassoMedioGiornaliero * (1 + $variazione), 2));
+
+                    // Arrotondamento a 1 decimale se non termina con 0
+                    // Questo arrotondamento sembra strano, lo commento per ora.
+                    // if ((int)($incassoGiornaliero * 10) % 10 !== 0) {
+                    //     $incassoGiornaliero = round($incassoGiornaliero, 1);
+                    // }
     
                     $incassoGiornalieroTassista[$dataLavorativa] = $incassoGiornaliero;
-                    $incassoTotaleRidistribuito += $incassoGiornaliero;
-                    $incassoResiduo -= $incassoGiornaliero;
-    
+                    $incassoTotaleRidistribuitoTassista += $incassoGiornaliero;
+
+                    // Accumula per i corrispettivi totali giornalieri
                     if (!isset($incassiGiornalieri[$dataLavorativa])) {
                         $incassiGiornalieri[$dataLavorativa] = 0;
                     }
                     $incassiGiornalieri[$dataLavorativa] += $incassoGiornaliero;
                 }
     
-                if (!empty($giorniLavorativi) && round($incassoTotaleRidistribuito, 2) !== round($incassoMensile, 2)) {
-                    $differenza = round($incassoMensile - $incassoTotaleRidistribuito, 2);
-                    $ultimoGiorno = end($giorniLavorativi);
-                    $incassoGiornalieroTassista[$ultimoGiorno] = round(($incassoGiornalieroTassista[$ultimoGiorno] ?? 0) + $differenza, 2);
-                }
-    
-                // Salvataggio nella tabella 'incassi'
-                foreach ($incassoGiornalieroTassista as $dataIncasso => $valoreIncasso) {
-                    $dataInsert = [
-                        'tassista_id' => $tassistaId,
-                        'data_incasso' => $dataIncasso,
-                        'valore_incasso' => $valoreIncasso
-                    ];
-    
-                    //echo "  Query di inserimento in incassi: INSERT INTO incassi (" . implode(", ", array_keys($dataInsert)) . ") VALUES ('" . implode("', '", array_values($dataInsert)) . "')<br>";
-                    //var_dump($dataInsert);
-                    $result = $database->insert("incassi_taxi", $dataInsert);
-                    if ($result === false) {
-                        //echo "  Errore inserimento incassi: " . mysqli_error($database->connection) . "<br>";
+                // Correzione arrotondamento per il tassista
+                // Applica la differenza all'ultimo giorno lavorativo del tassista
+                $differenza = round($incassoMensile - $incassoTotaleRidistribuitoTassista, 2);
+                if ($differenza != 0) {
+                    $ultimoGiorno = end($giorniLavorativiTassista);
+                    // Assicurati che l'ultimo giorno esista nell'array prima di modificarlo
+                    if (isset($incassoGiornalieroTassista[$ultimoGiorno])) {
+                         $nuovoValoreUltimoGiorno = round($incassoGiornalieroTassista[$ultimoGiorno] + $differenza, 2);
+                         // Assicura che non diventi negativo
+                         $nuovoValoreUltimoGiorno = max(0, $nuovoValoreUltimoGiorno);
+                         $differenzaEffettiva = $nuovoValoreUltimoGiorno - $incassoGiornalieroTassista[$ultimoGiorno];
+
+                         // Aggiorna l'incasso del tassista
+                         $incassoGiornalieroTassista[$ultimoGiorno] = $nuovoValoreUltimoGiorno;
+
+                         // Aggiorna anche l'incasso totale giornaliero per i corrispettivi
+                         if (isset($incassiGiornalieri[$ultimoGiorno])) {
+                             $incassiGiornalieri[$ultimoGiorno] = round($incassiGiornalieri[$ultimoGiorno] + $differenzaEffettiva, 2);
+                             $incassiGiornalieri[$ultimoGiorno] = max(0, $incassiGiornalieri[$ultimoGiorno]); // Non negativo
+                         }
+                         // echo "Correzione per Tassista $tassistaId: Aggiunti $differenza a $ultimoGiorno.<br>"; // Debug
                     } else {
-                        //echo "  Inserimento in incassi riuscito<br>";
+                         error_log("Errore correzione: Ultimo giorno $ultimoGiorno non trovato per tassista $tassistaId.");
+                         // echo "ERRORE Correzione: Ultimo giorno $ultimoGiorno non trovato per tassista $tassistaId.<br>"; // Debug
                     }
                 }
-            }
+    
+                // Salvataggio nella tabella 'incassi_taxi' per questo tassista
+                foreach ($incassoGiornalieroTassista as $dataIncasso => $valoreIncasso) {
+                    // Verifica che il valore sia > 0 prima di inserire? Dipende dai requisiti.
+                    if ($valoreIncasso >= 0) { // Inserisci anche 0 se necessario, altrimenti > 0
+                        $dataInsert = [
+                            'tassista_id' => $tassistaId,
+                            'data_incasso' => $dataIncasso,
+                            'valore_incasso' => $valoreIncasso
+                        ];
+                        // Usa prepared statements se possibile per sicurezza e performance
+                        $result = $database->insert("incassi_taxi", $dataInsert);
+                        // Aggiungi gestione errori più robusta se $result è false
+                        if ($result === false) {
+                             error_log("Errore inserimento incassi_taxi per Tassista $tassistaId, Data $dataIncasso.");
+                             // Potrebbe essere utile lanciare un'eccezione qui per far scattare il rollback
+                             // throw new Exception("Errore inserimento incassi_taxi per Tassista $tassistaId, Data $dataIncasso.");
+                        }
+                    }
+                }
+            } // Fine ciclo tassisti
 
-            // Salvataggio nella tabella 'corrispettivi'
+            // Salvataggio nella tabella 'corrispettivi_taxi' (totali giornalieri)
             // Costruzione della query per l'inserimento multiplo in 'corrispettivi_taxi'
-            $queryCorrispettivi = "INSERT INTO corrispettivi_taxi (data, giorno_settimana, valore_corrispettivo) VALUES ";
-            $values = [];
+            if (!empty($incassiGiornalieri)) {
+                $valuesCorrispettivi = [];
+                // Ordina per data per inserimento più ordinato (opzionale)
+                ksort($incassiGiornalieri);
 
-            foreach ($incassiGiornalieri as $data => $valore) {
-                $dataObj = new DateTime($data);
-                $giornoSettimanaNome = date('l', $dataObj->getTimestamp());
-                $values[] = "('$data', '$giornoSettimanaNome', " . round($valore, 2) . ")";
-            }
+                foreach ($incassiGiornalieri as $data => $valore) {
+                    if ($valore >= 0) { // Inserisci anche 0 se necessario
+                        $dataObj = new DateTime($data);
+                        // Usa 'N' per giorno numerico (1-7) o 'l' per nome completo ('Monday', 'Tuesday', ...)
+                        // Scegli quello che corrisponde alla definizione della tua tabella
+                        $giornoSettimanaNome = $dataObj->format('l'); // Nome completo es. Monday
+                        // $giornoSettimanaNum = $dataObj->format('N'); // Numero 1-7
 
-            $queryCorrispettivi .= implode(",", $values);
-            $result = $database->query_nr($queryCorrispettivi); // Usa query_nr per le query senza risultati
-            if ($result === false) {
-                throw new Exception("Errore inserimento corrispettivi: " . mysqli_error($database->connection));
+                        // Assicurati che i valori siano correttamente escapati se non usi prepared statements
+                        // La classe Database dovrebbe gestire l'escaping, ma è bene esserne consapevoli.
+                        // Qui usiamo l'inserimento multiplo, quindi l'escaping è cruciale.
+                        $escapedData = $database->escapeString($data);
+                        $escapedGiornoNome = $database->escapeString($giornoSettimanaNome);
+                        $escapedValore = round($valore, 2); // Già numerico, non serve escape SQL diretto
+
+                        $valuesCorrispettivi[] = "('$escapedData', '$escapedGiornoNome', $escapedValore)";
+                    }
+                }
+
+                if (!empty($valuesCorrispettivi)) {
+                    $queryCorrispettivi = "INSERT INTO corrispettivi_taxi (data, giorno_settimana, valore_corrispettivo) VALUES ";
+                    $queryCorrispettivi .= implode(",", $valuesCorrispettivi);
+
+                    // Usa query_nr o un metodo appropriato per query senza risultati attesi
+                    $resultCorrispettivi = $database->query_nr($queryCorrispettivi);
+                    if ($resultCorrispettivi === false) {
+                        // Lancia eccezione per triggerare il rollback
+                        throw new Exception("Errore inserimento corrispettivi_taxi: " . $database->connection->error);
+                    }
+                }
+            } else {
+                 // echo "Nessun incasso giornaliero totale da salvare in corrispettivi.<br>"; // Debug
             }
             $database->commit();
             return "Ridistribuzione incassi e salvataggio completati con successo.";
         } catch (Exception $e) {
             $database->rollback();
-            return "Errore: " . $e->getMessage() . "\n";
+            // Logga l'errore completo per il debug
+            error_log("Errore in ridistribuisciIncassiRoute: " . $e->getMessage() . "\nStack Trace:\n" . $e->getTraceAsString());
+            // Restituisci un messaggio generico o specifico all'utente
+            return "Errore durante la ridistribuzione degli incassi: " . $e->getMessage(); // Rimuovi \n alla fine
         }
     }
     // Funzione per ottenere i corrispettivi per mese
@@ -733,8 +856,20 @@
         $primoGiorno = date("Y-m-d", strtotime("$annoRiferimento-$meseRiferimento-01"));
         $ultimoGiorno = date("Y-m-t", strtotime($primoGiorno)); // "t" restituisce l'ultimo giorno del mese
     
-        $query = "SELECT * FROM corrispettivi_taxi WHERE data BETWEEN '$primoGiorno' AND '$ultimoGiorno'";
-    
+        // Modifica la query per includere il conteggio dei tassisti distinti dalla tabella incassi_taxi
+        $query = "SELECT
+                      ct.data,
+                      ct.giorno_settimana,
+                      ct.valore_corrispettivo,
+                      COUNT(DISTINCT it.tassista_id) AS numero_tassisti
+                  FROM
+                      corrispettivi_taxi ct
+                  LEFT JOIN -- Usa LEFT JOIN per mantenere tutti i giorni con corrispettivi, anche se non ci sono incassi taxi associati
+                      incassi_taxi it ON ct.data = it.data_incasso
+                  WHERE ct.data BETWEEN '$primoGiorno' AND '$ultimoGiorno'
+                  GROUP BY ct.data, ct.giorno_settimana, ct.valore_corrispettivo -- Raggruppa per la chiave univoca (data) e le altre colonne non aggregate
+                  ORDER BY ct.data";
+
         try {
             $result = $database->query($query);
             return $result;

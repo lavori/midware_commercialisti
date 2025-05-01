@@ -79,7 +79,7 @@
             return 'multi-level'; 
         } elseif (is_string($innerElement) && is_int($innerKey) && $innerKey === 0) {
             
-            return 'single-level'; '
+            return 'single-level'; 
         }
 
         return 'unknown/empty'; 

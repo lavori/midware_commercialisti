@@ -208,5 +208,12 @@ class Database {
         }
         return $clause;
     }
+
+    /**
+     * Escapes special characters in a string for use in an SQL statement, using the current connection
+     */
+    public function escapeString(string $value): string {
+        return $this->connection->real_escape_string($value);
+    }
 }
 ?>
