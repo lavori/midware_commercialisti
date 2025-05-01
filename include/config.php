@@ -30,9 +30,9 @@ $menu=array(
             'Gestione corrispettivi' => array('/corrispettivi','coins','primary'),
             'Generazione corrispettivi' => array('/corrispettivi/corrispettivi_multipli','setting','primary')
         ),
-        'corrispettivi tassisti' => array(
-            'Gestione corrispettivi' => array('/corrispettivi','coins','primary'),
-            'Generazione corrispettivi' => array('/corrispettivi/corrispettivi_multipli','setting','primary')
+        'corrispettivi taxisti' => array(
+            'Gestione corrispettivi' => array('/corrispettivi/taxisti','coins','primary'),
+            'Generazione incassi/corrispettivi' => array('corrispettivi/ridistribuisci-incassi','setting','primary')
         )
     )
 );
