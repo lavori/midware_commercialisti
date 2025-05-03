@@ -1,9 +1,9 @@
 <div class="nk-block-head nk-block-head-sm">
     <div class="nk-block-between">
         <div class="nk-block-head-content">
-            <h1 class="page-title">Genera Incassi</h1>
+            <h1 class="page-title">Ricerca Incassi / Corrispettivi taxisti</h1>
             <div class="nk-block-des text-soft">
-                <h2>Inserisci i dati per generare Incassi</h2>
+                <h2>Inserisci i dati di ricerca</h2>
             </div>
         </div>
     </div>
@@ -12,48 +12,53 @@
     <div class="card card-bordered card-preview">
         <div class="card-inner">
             <div class="card-head">
-                <h6 class="title">Dati Incassi</h6>
+                <h6 class="title">Dati di ricerca</h6>
             </div>
             <form action="/corrispettivi/taxisti" method="POST" class="form-validate">
-                <input type="hidden" id="anno" name="anno" value="<?php echo date('Y'); ?>">
+                <input type="hidden" id="tipo_action" name="tipo_action" value="ricerca">
                 <div class="row g-3">
                     <div class="col-4">
                         <div class="form-group">
-                            <label class="form-label" for="mese">Mese di Riferimento</label>
+                            <label class="form-label" for="mese">Taxista</label>
                             <div class="form-control-wrap">
-                                <select class="form-select" id="mese" name="mese" data-search="off" data-ui="lg">
-                                    <option value="1">Gennaio</option>
-                                    <option value="2">Febbraio</option>
-                                    <option value="3">Marzo</option>
-                                    <option value="4">Aprile</option>
-                                    <option value="5">Maggio</option>
-                                    <option value="6">Giugno</option>
-                                    <option value="7">Luglio</option>
-                                    <option value="8">Agosto</option>
-                                    <option value="9">Settembre</option>
-                                    <option value="10">Ottobre</option>
-                                    <option value="11">Novembre</option>
-                                    <option value="12">Dicembre</option>
+                                <select class="form-select" id="taxista" name="taxista" data-search="on" data-ui="lg">
+                                    <option value="0">Tutti i Taxisti</option>
+                                    <?php foreach($tassisti as $taxi): ?>
+                                    <option value="<?php echo $taxi['id']; ?>"><?php echo $taxi['Nome']." ".$taxi['Cognome']; if ($taxi['Dimissioni'] != "") echo " (".$taxi['Dimissioni'].")"; ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                         </div>
                     </div>
                     <div class="col-4">
                         <div class="form-group">
-                            <label class="form-label" for="incassoMensile">Incasso Mensile per tassista</label>
+                            <label class="form-label">Date</label>
                             <div class="form-control-wrap">
-                                <div class="form-icon form-icon-left">
-                                    <em class="icon ni ni-sign-eur"></em>
+                                <div class="input-daterange date-picker-range input-group">
+                                    <input type="text" name="da" class="form-control date-picker" data-date-format="dd/mm/yyyy" />
+                                    <div class="input-group-addon">A</div>
+                                    <input type="text" name="a" class="form-control date-picker" data-date-format="dd/mm/yyyy" />
                                 </div>
-                                <input type="number" class="form-control" id="incassoMensile" name="incassoMensile" required>
                             </div>
                         </div>
                     </div>
+                    <div class="col-4" id="tipo_div">
+                        <div class="form-group" >
+                            <label class="form-label">Tipo</label>
+                            <div class="form-control-wrap">
+                                <div class="custom-control-lg custom-switch">
+                                    <input type="checkbox" class="custom-control-input" id="tipo" value="1" name="tipo">
+                                    <label class="custom-control-label" for="tipo">Non Contabilizzato</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-8" id='spacer'></div>
                     <div class="col-4">
                         <div class="form-group">
                             <label class="form-label" for="submit">&nbsp;</label>
                             <div class="form-control-wrap">
-                                <button type="submit" class="btn btn-primary" id="submit">Genera Incassi</button>
+                                <button type="submit" class="btn btn-primary" id="submit">Ricerca corrispettivi</button>
                             </div>
                         </div>
                     </div>
@@ -85,27 +90,32 @@
         <?php endif; ?>
     </div>
 </div>
-<?php if($content!= ''): ?>
+<?php if($content!= '' && $content!= array()): ?>
 <div class="nk-block nk-block-lg">
     <div class="card card-bordered card-preview">
         <div class="card-inner">
             <?php 
                 $th=array_keys($content[0]);
+                //echo "<pre\>"; print_r($content); echo "</pre>";
             ?>
             <form action="/corrispettivi/invio-corrispettivi" method="POST" class="form-validate">
                 <input type="hidden" id="tipo" name="tipo" value="taxi">
                 <table class="datatable-init-export table">
                     <thead>
                         <tr>
+                            <?php if($ricerca=="corrispettivi_taxisti"): ?>
                             <th class="nk-tb-col nk-tb-col-check">
                                 <!-- Checkbox Seleziona Tutti -->
                                 <div class="custom-control custom-control-sm custom-checkbox notext">
                                     <input type="checkbox" class="custom-control-input" id="selectAllCheckbox">
-                                    <label class="custom-control-label" for="selectAllCheckbox"></label>
+                                    <label class="custom-control-label" for="selectAllCheckbox">Contabilizzazione</label>
                                 </div>
                             </th>
+                            <?php endif; ?>
                         <?php 
-                            foreach($th as $k => $v): 
+                            foreach($th as $k => $v):
+                                // Salta la colonna 'contabilizzato'
+                                if ($v === 'contabilizzato') continue;
                                 // Modifica la stringa prima della stampa
                                 $stringa_modificata = str_replace('_', ' ', $v); 
                                 $stringa_modificata = ucwords($stringa_modificata); 
@@ -118,15 +128,33 @@
                     <tbody>
                     <?php foreach($content as $k => $v): ?>
                         <tr>
+                            <?php foreach($v as $k2 => $v2): ?>
                             <!-- Cella Checkbox per riga -->
-                            <td class="nk-tb-col nk-tb-col-check">
+                            <?php 
+                                if($ricerca=="corrispettivi_taxisti" && $k2 === 'contabilizzato'): 
+                                    $data_obj_for_sort = new DateTime($v['data']); 
+                                    $dataOrderAttr1 = ' data-order="' . $data_obj_for_sort->format('Ymd') . '"'; 
+                            ?>
+                            <td class="nk-tb-col nk-tb-col-check" <?php echo $dataOrderAttr1; ?>>
+                                <?php  if ($k2 === 'contabilizzato' && $v2==0): ?>
                                 <div class="custom-control custom-control-sm custom-checkbox notext">
                                     <input type="checkbox" class="custom-control-input rowCheckbox" id="corrispettivo<?php echo $k; ?>" name="corrispettivo[]" value="<?php echo $v['data']; ?>|<?php echo $v['valore_corrispettivo']; ?>">
                                     <label class="custom-control-label" for="corrispettivo<?php echo $k; ?>"></label>
                                 </div>
+                                <?php else: ?>
+                                <h6><mark>Contabilizzato</mark></h6>    
+                                <?php endif; ?>
                             </td>
-                            <?php foreach($v as $k2 => $v2): ?>
-                            <td class="vm nk-tb-col tb-col-sm">
+                            <?php 
+                                else:
+                                    // Prepara l'attributo data-order se è la colonna data
+                                    $dataOrderAttr = '';
+                                    if ($k2 == "data") {
+                                        $data_obj_for_sort = new DateTime($v2); // $v2 è nel formato YYYY-MM-DD dal DB
+                                        $dataOrderAttr = ' data-order="' . $data_obj_for_sort->format('Ymd') . '"'; // Formato YYYYMMDD per ordinamento
+                                    }
+                                ?>
+                            <td class="vm nk-tb-col tb-col-sm" <?php echo $dataOrderAttr; ?>>
                                 <?php
                                     if ($k2 == "data") {
                                         // Formatta la data come gg/mm/aaaa
@@ -153,6 +181,9 @@
                                     }
                                 ?>
                             </td>
+                            <?php 
+                                endif; 
+                            ?>
                             <?php endforeach; ?>
                             <td class="nk-tb-col nk-tb-col-tools">
                                 <ul class="nk-tb-actions gx-1">
@@ -160,6 +191,8 @@
                                         <div class="drodown">
                                             <a class="dropdown-toggle btn btn-icon btn-trigger" data-bs-toggle="dropdown"><em class="icon ni ni-more-h"></em></a>
                                             <div class="dropdown-menu dropdown-menu-end">
+                                                <?php if($ricerca=='incassi_taxisti'): ?>
+                                                <?php else: ?>
                                                 <ul class="link-list-opt no-bdr">
                                                     <li>
                                                         <a style="cursor: pointer;" onClick="apriModal('Dettaglio Corrispettivo','Gestione corrispettivi','corrispettivi/dettaglio_corrispettivo','<?php echo $v['data']; ?>','1')">
@@ -167,14 +200,16 @@
                                                             <span>Visualizza dettagli</span>
                                                         </a>
                                                     </li>
-                                                    <?php /* Gestire l'apertura di questo modale con relative funzioni */ ?>
+                                                    <?php if($v['contabilizzato']==0): ?>
                                                     <li>
                                                         <a style="cursor: pointer;" onClick="apriModal('Dettaglio Corrispettivo','Gestione corrispettivi','corrispettivi/dettaglio_corrispettivo','<?php echo $v['data']; ?>','1')">
                                                             <em class="icon ni ni-edit"></em>
                                                             <span>Modifica Corrispettivo</span>
                                                         </a>
                                                     </li>
+                                                    <?php endif; ?>
                                                 </ul>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </li>
@@ -233,6 +268,52 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Gestione cambio label per lo switch "Contabilizzato"
+    const tipoSwitch = document.getElementById('tipo');
+    const tipoLabel = document.querySelector('label[for="tipo"]');
+
+    if (tipoSwitch && tipoLabel) {
+        // Funzione per aggiornare il testo della label
+        function updateTipoLabel() {
+            if (tipoSwitch.checked) {
+                tipoLabel.textContent = 'Contabilizzato';
+            } else {
+                tipoLabel.textContent = 'Non Contabilizzato';
+            }
+        }
+
+        // Imposta lo stato iniziale al caricamento della pagina
+        updateTipoLabel();
+        // Aggiungi l'event listener per il cambio di stato
+        tipoSwitch.addEventListener('change', updateTipoLabel);
+    }
+
+    // Gestione cambio label per il bottone di submit ricerca
+    const taxistaSelect = document.getElementById('taxista');
+    const submitButton = document.getElementById('submit'); // Assicurati che il bottone abbia questo ID
+
+    if (taxistaSelect && submitButton) {
+        // Funzione per aggiornare il testo del bottone
+        function updateSubmitButtonLabel() {
+            if (taxistaSelect.value === '0') {
+                submitButton.textContent = 'Ricerca corrispettivi';
+                document.getElementById('tipo_div').style.display = 'block';
+                document.getElementById('spacer').style.display = 'block';
+            } else {
+                submitButton.textContent = 'Ricerca incassi';
+                document.getElementById('tipo_div').style.display = 'none';
+                document.getElementById('spacer').style.display = 'none';   
+            }
+        }
+
+        // Imposta lo stato iniziale al caricamento della pagina
+        updateSubmitButtonLabel();
+        // Aggiungi l'event listener per il cambio di stato del select
+        taxistaSelect.addEventListener('change', updateSubmitButtonLabel);
+    }
+
 });
+
 </script>
 <?php endif; ?>

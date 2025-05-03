@@ -355,22 +355,88 @@
         /*Route corrispettivi*/
         $router->addRoute('/corrispettivi/taxisti', function () use ($database, $dominio, $titolo, $apps, $menu)  {
             $alert='';
+            $tipo_alert = '';
+            $ricerca='corrispettivi_taxisti';
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                if ($_POST['tipo_action']=="update"){
-                    $data['corrispettivo']=$_POST['corrispettivo'];
-                    $data['descrizione']=$_POST['descrizione'];
-                    $data['email']=$_POST['email'];
-                    $where='id='.$_POST['id'];
-                    $database->update('corrispettivo', $data, $where);
+                //echo"<pre>"; print_r($_POST); echo "</pre>"; exit();
+                if ($_POST['tipo_action']=="ricerca"){
+                    $taxistaId = $_POST['taxista'] ?? '0';
+                    $dataDaInput = $_POST['da'] ?? null;
+                    $dataAInput = $_POST['a'] ?? null;
+                    // --- Conversione Date ---
+                    $dataDa = null;
+                    $dataA = null;
+                    try {
+                        if ($dataDaInput) {
+                            $dataDaObj = DateTime::createFromFormat('d/m/Y', $dataDaInput);
+                            if ($dataDaObj) {
+                                $dataDa = $dataDaObj->format('Y-m-d');
+                            } else {
+                                throw new Exception("Formato data 'Da' non valido.");
+                            }
+                        }
+                        if ($dataAInput) {
+                            $dataAObj = DateTime::createFromFormat('d/m/Y', $dataAInput);
+                            if ($dataAObj) {
+                                // Per includere tutto il giorno finale nella ricerca BETWEEN
+                                $dataA = $dataAObj->format('Y-m-d');
+                            } else {
+                                throw new Exception("Formato data 'A' non valido.");
+                            }
+                        }
+                    } catch (Exception $e) {
+                        $alert = "Errore nel formato delle date: " . $e->getMessage();
+                        $tipo_alert = 'danger';
+                        // Non procedere con la query se le date sono errate
+                        //goto render_page; // Salta alla fine per renderizzare la pagina con l'errore
+                        $corrispettivi='';
+                    }
+
+                    // --- Costruzione Query ---
+                    $queryParams = [];
+                    if ($taxistaId === '0') { // Ricerca Corrispettivi (aggregati)
+                        $query = "SELECT ct.contabilizzato, ct.data, ct.giorno_settimana, ct.valore_corrispettivo,  COUNT(DISTINCT it.tassista_id) AS numero_tassisti
+                                  FROM corrispettivi_taxi ct
+                                  LEFT JOIN incassi_taxi it ON ct.data = it.data_incasso
+                                  WHERE 1=1"; // Clausola base
+                        if ($dataDa) $query .= " AND ct.data >= '$dataDa'";
+                        if ($dataA) $query .= " AND ct.data <= '$dataA'";
+                        // Applica filtro contabilizzazione solo se si cercano i corrispettivi aggregati
+                        if(isset($_POST['tipo'])) $query .= " AND ct.contabilizzato = '1'";
+                        $query .= " GROUP BY ct.data, ct.giorno_settimana, ct.valore_corrispettivo ORDER BY ct.data";
+                    } else { // Ricerca Incassi (singolo tassista)
+                        $query = "SELECT data_incasso AS data, DAYNAME(data_incasso) AS giorno_settimana, valore_incasso
+                                  FROM incassi_taxi
+                                  WHERE tassista_id = '$taxistaId'";
+                        if ($dataDa) $query .= " AND data_incasso >= '$dataDa'";
+                        if ($dataA) $query .= " AND data_incasso <= '$dataA'";
+                        $query .= " ORDER BY data_incasso";
+                        // Nota: Il filtro 'contabilizzato' non si applica direttamente agli incassi singoli qui
+                        $ricerca='incassi_taxisti';
+                    }
+
+                    // --- Esecuzione Query ---
+                    try {
+                        // echo "<pre>Query: " . htmlspecialchars($query) . "</pre>"; // Debug query
+                        $corrispettivi = $database->query($query);
+                        if (empty($corrispettivi)) {
+                            $alert = "Nessun risultato trovato per i criteri specificati.";
+                            $tipo_alert = 'warning';
+                        }
+                    } catch (Exception $e) {
+                        $alert = "Errore durante la ricerca nel database: " . $e->getMessage();
+                        $tipo_alert = 'danger';
+                    }
                 } elseif($_POST['tipo_action']=="new"){
                     $data['corrispettivo']=$_POST['corrispettivo'];
                     $data['descrizione']=$_POST['descrizione'];
                     $data['email']=$_POST['email'];
                     $database->insert('corrispettivo', $data);
                 }
+            } else {
+                $corrispettivi = getCorrispettiviTaxi($database, '*', 'contabilizzato=0');  //CorrispettiviTaxi  
             }
-            $corrispettivi=getCorrispettiviTaxi($database); //CorrispettiviTaxi
-
+            $tassisti=$database->select('tassisti','id,Nome,Cognome,Dimissioni');
             $content = [
                 'dominio' => $dominio,
                 'titolo' => $titolo,
@@ -382,6 +448,8 @@
                 'h2' => 'Corrispettivi',
                 'date' => array(),
                 'alert' => $alert,
+                'tassisti' => $tassisti,
+                'ricerca' => $ricerca,
                 'content' => $corrispettivi
             ];
             $result = render('corrispettivi/corrispettivi_taxisti', $content);
