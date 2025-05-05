@@ -27,8 +27,7 @@ $menu=array(
     ),
     'corrispettivi' => array(
         'corrispettivi operatori' => array(
-            'Gestione corrispettivi' => array('/corrispettivi','coins','primary'),
-            'Generazione corrispettivi' => array('/corrispettivi/corrispettivi_multipli','setting','primary')
+            'Gestione corrispettivi' => array('/corrispettivi/operatori','coins','primary'),
         ),
         'corrispettivi taxisti' => array(
             'Gestione corrispettivi' => array('/corrispettivi/taxisti','coins','primary'),

@@ -395,7 +395,7 @@
                     // --- Costruzione Query ---
                     $queryParams = [];
                     if ($taxistaId === '0') { // Ricerca Corrispettivi (aggregati)
-                        $query = "SELECT ct.contabilizzato, ct.data, ct.giorno_settimana, ct.valore_corrispettivo,  COUNT(DISTINCT it.tassista_id) AS numero_tassisti
+                        $query = "SELECT ct.contabilizzato, ct.n_registrazione, ct.data, ct.giorno_settimana, ct.valore_corrispettivo,  COUNT(DISTINCT it.tassista_id) AS numero_tassisti
                                   FROM corrispettivi_taxi ct
                                   LEFT JOIN incassi_taxi it ON ct.data = it.data_incasso
                                   WHERE 1=1"; // Clausola base
@@ -405,36 +405,226 @@
                         if(isset($_POST['tipo'])) $query .= " AND ct.contabilizzato = '1'";
                         $query .= " GROUP BY ct.data, ct.giorno_settimana, ct.valore_corrispettivo ORDER BY ct.data";
                     } else { // Ricerca Incassi (singolo tassista)
-                        $query = "SELECT data_incasso AS data, DAYNAME(data_incasso) AS giorno_settimana, valore_incasso
-                                  FROM incassi_taxi
-                                  WHERE tassista_id = '$taxistaId'";
+                        $query = "SELECT it.data_incasso AS data, DAYNAME(it.data_incasso) AS giorno_settimana, it.valore_incasso, ct.contabilizzato AS incasso_contabilizzato
+                                  FROM incassi_taxi it
+                                  LEFT JOIN corrispettivi_taxi ct ON it.data_incasso = ct.data
+                                  WHERE it.tassista_id = '$taxistaId'";
+
                         if ($dataDa) $query .= " AND data_incasso >= '$dataDa'";
                         if ($dataA) $query .= " AND data_incasso <= '$dataA'";
                         $query .= " ORDER BY data_incasso";
                         // Nota: Il filtro 'contabilizzato' non si applica direttamente agli incassi singoli qui
                         $ricerca='incassi_taxisti';
                     }
+                } elseif($_POST['tipo_action']=="modifica_incasso"){
+                    // Dati necessari per l'aggiornamento e la successiva ricerca/visualizzazione
+                    $incassoNuovoValore = $_POST['incasso'] ?? 0.0;
+                    $dataIncasso = $_POST['data_incasso'] ?? null; // Formato YYYY-MM-DD
+                    $taxistaId = $_POST['tassista_id'] ?? null;
+                    $dataDaInput = $_POST['da'] ?? null; // Formato dd/mm/yyyy (per ricerca successiva)
+                    $dataAInput = $_POST['a'] ?? null;   // Formato dd/mm/yyyy (per ricerca successiva)
 
-                    // --- Esecuzione Query ---
+                    // Validazione minima
+                    if (!$dataIncasso || !$taxistaId) {
+                        $alert = "Dati mancanti per la modifica dell'incasso.";
+                        $tipo_alert = 'danger';
+                        $corrispettivi = []; // Nessun dato da mostrare
+                    } else {
+                        // Inizia la transazione
+                        $database->beginTransaction();
+                        try {
+                            // 1. Aggiorna il singolo incasso
+                            $updateIncassoData = ['valore_incasso' => $incassoNuovoValore];
+                            $updateIncassoWhere = "data_incasso = '" . $database->escapeString($dataIncasso) . "' AND tassista_id = '" . $database->escapeString($taxistaId) . "'";
+                            $affectedRowsIncasso = $database->update('incassi_taxi', $updateIncassoData, $updateIncassoWhere);
+
+                            // 2. Ricalcola il totale corrispettivo per quella data
+                            $querySum = "SELECT SUM(valore_incasso) AS nuovo_corrispettivo FROM incassi_taxi WHERE data_incasso = '" . $database->escapeString($dataIncasso) . "'";
+                            $resultSum = $database->query($querySum);
+
+                            if ($resultSum && isset($resultSum[0]['nuovo_corrispettivo'])) {
+                                $nuovoCorrispettivo = $resultSum[0]['nuovo_corrispettivo'] ?? 0.0; // Default a 0.0 se NULL
+
+                                // 3. Aggiorna il corrispettivo aggregato
+                                $updateCorrispettivoData = ['valore_corrispettivo' => $nuovoCorrispettivo];
+                                $updateCorrispettivoWhere = "data = '" . $database->escapeString($dataIncasso) . "'";
+                                $affectedRowsCorrispettivo = $database->update('corrispettivi_taxi', $updateCorrispettivoData, $updateCorrispettivoWhere);
+
+                                // Se l'aggiornamento del corrispettivo non ha modificato righe (potrebbe non esistere), potresti volerlo inserire
+                                // if ($affectedRowsCorrispettivo == 0) {
+                                //    // Logica per inserire il corrispettivo se non esiste (opzionale)
+                                // }
+
+                                // Se tutto ok, conferma la transazione
+                                $database->commit();
+                                $alert = "Incasso del $dataIncasso modificato con successo. Corrispettivo ricalcolato.";
+                                $tipo_alert = 'success';
+
+                            } else {
+                                // Errore nel calcolo della somma
+                                throw new Exception("Impossibile ricalcolare il corrispettivo totale per la data $dataIncasso.");
+                            }
+
+                        } catch (Exception $e) {
+                            // Errore durante le operazioni DB, annulla la transazione
+                            $database->rollback();
+                            $alert = "Errore durante la modifica dell'incasso: " . $e->getMessage();
+                            $tipo_alert = 'danger';
+                        }
+
+                        // --- Riesegui la query per visualizzare i dati aggiornati ---
+                        // (Questa parte è simile a quella della ricerca, ma forzata per il tassista modificato)
+                        $dataDa = $dataDaInput ? (DateTime::createFromFormat('d/m/Y', $dataDaInput) ? DateTime::createFromFormat('d/m/Y', $dataDaInput)->format('Y-m-d') : null) : null;
+                        $dataA = $dataAInput ? (DateTime::createFromFormat('d/m/Y', $dataAInput) ? DateTime::createFromFormat('d/m/Y', $dataAInput)->format('Y-m-d') : null) : null;
+
+                        $query = "SELECT it.data_incasso AS data, DAYNAME(it.data_incasso) AS giorno_settimana, it.valore_incasso, ct.contabilizzato AS incasso_contabilizzato
+                                  FROM incassi_taxi it
+                                  LEFT JOIN corrispettivi_taxi ct ON it.data_incasso = ct.data
+                                  WHERE it.tassista_id = '" . $database->escapeString($taxistaId) . "'";
+
+                        if ($dataDa) $query .= " AND data_incasso >= '$dataDa'";
+                        if ($dataA) $query .= " AND data_incasso <= '$dataA'";
+                        $query .= " ORDER BY data_incasso";
+                        $ricerca='incassi_taxisti';
+
+                        // Esegui la query per popolare $corrispettivi
+                        $corrispettivi = $database->query($query); // La gestione errori della query è più avanti
+                    }
+                } elseif($_POST['tipo_action']=="modifica_corrispettivo"){
+                    //echo"<pre>"; print_r($_POST); echo "</pre>"; exit();
+                    // Dati necessari
+                    $nuovoValoreCorrispettivo = (float)($_POST['corrispettivo'] ?? 0.0);
+                    $dataCorrispettivo = $_POST['data_corrispettivo'] ?? null; // Formato YYYY-MM-DD
+                    $dataDaInput = $_POST['da'] ?? null; // Formato dd/mm/yyyy (per ricerca successiva)
+                    $dataAInput = $_POST['a'] ?? null;   // Formato dd/mm/yyyy (per ricerca successiva)
+                    // --- Conversione Date ---
+                    $dataDa = null;
+                    $dataA = null;
                     try {
-                        // echo "<pre>Query: " . htmlspecialchars($query) . "</pre>"; // Debug query
-                        $corrispettivi = $database->query($query);
-                        if (empty($corrispettivi)) {
-                            $alert = "Nessun risultato trovato per i criteri specificati.";
-                            $tipo_alert = 'warning';
+                        if ($dataDaInput) {
+                            $dataDaObj = DateTime::createFromFormat('d/m/Y', $dataDaInput);
+                            if ($dataDaObj) {
+                                $dataDa = $dataDaObj->format('Y-m-d');
+                            } else {
+                                throw new Exception("Formato data 'Da' non valido.");
+                            }
+                        }
+                        if ($dataAInput) {
+                            $dataAObj = DateTime::createFromFormat('d/m/Y', $dataAInput);
+                            if ($dataAObj) {
+                                // Per includere tutto il giorno finale nella ricerca BETWEEN
+                                $dataA = $dataAObj->format('Y-m-d');
+                            } else {
+                                throw new Exception("Formato data 'A' non valido.");
+                            }
                         }
                     } catch (Exception $e) {
-                        $alert = "Errore durante la ricerca nel database: " . $e->getMessage();
+                        $alert = "Errore nel formato delle date: " . $e->getMessage();
                         $tipo_alert = 'danger';
+                        // Non procedere con la query se le date sono errate
+                        //goto render_page; // Salta alla fine per renderizzare la pagina con l'errore
+                        $corrispettivi='';
                     }
-                } elseif($_POST['tipo_action']=="new"){
-                    $data['corrispettivo']=$_POST['corrispettivo'];
-                    $data['descrizione']=$_POST['descrizione'];
-                    $data['email']=$_POST['email'];
-                    $database->insert('corrispettivo', $data);
+                    // Validazione
+                    if (!$dataCorrispettivo || $nuovoValoreCorrispettivo < 0) {
+                        $alert = "Dati mancanti o non validi per la modifica del corrispettivo.";
+                        $tipo_alert = 'danger';
+                        $corrispettivi = [];
+                    } else {
+                        $database->beginTransaction();
+                        try {
+                            // 1. Ottieni il vecchio valore del corrispettivo
+                                $where=" data = '" . $database->escapeString($dataCorrispettivo) . "'";
+                                $resultVecchio = $database->select('corrispettivi_taxi','valore_corrispettivo',$where);
+                                if (!$resultVecchio || !isset($resultVecchio[0]['valore_corrispettivo'])) {
+                                    throw new Exception("Corrispettivo originale non trovato per la data $dataCorrispettivo.");
+                                }
+                                $vecchioValoreCorrispettivo = (float)$resultVecchio[0]['valore_corrispettivo'];
+
+                            // 2. Calcola la differenza
+                                $differenza = $nuovoValoreCorrispettivo - $vecchioValoreCorrispettivo;
+
+                            // 3. Ottieni gli incassi e i tassisti per quella data
+                                $where="data_incasso = '" . $database->escapeString($dataCorrispettivo) . "'";
+                                $incassiDelGiorno = $database->select('incassi_taxi','tassista_id, valore_incasso',$where);
+
+                            if (empty($incassiDelGiorno)) {
+                                // Se non ci sono incassi, aggiorna solo il corrispettivo (caso anomalo?)
+                                if ($differenza != 0) {
+                                     throw new Exception("Impossibile distribuire la differenza: nessun incasso trovato per la data $dataCorrispettivo.");
+                                }
+                            } else {
+                                // 4. Calcola il totale attuale degli incassi per la distribuzione proporzionale
+                                    $totaleIncassiAttuale = 0;
+                                    foreach ($incassiDelGiorno as $incasso) {
+                                        $totaleIncassiAttuale += (float)$incasso['valore_incasso'];
+                                    }
+
+                                    $differenzaRimanente = $differenza; // Per gestire arrotondamenti
+
+                                // 5. Distribuisci la differenza
+                                    foreach ($incassiDelGiorno as $index => $incasso) {
+                                        $tassistaId = $incasso['tassista_id'];
+                                        $valoreAttuale = (float)$incasso['valore_incasso'];
+
+                                        // Calcola la proporzione (distribuisci equamente se il totale è 0)
+                                        $proporzione = ($totaleIncassiAttuale > 0) ? ($valoreAttuale / $totaleIncassiAttuale) : (1 / count($incassiDelGiorno));
+
+                                        // Calcola l'aggiustamento, ma usa la differenza rimanente per l'ultimo elemento
+                                        if ($index === count($incassiDelGiorno) - 1) {
+                                            $aggiustamento = $differenzaRimanente;
+                                        } else {
+                                            $aggiustamento = round($differenza * $proporzione, 2);
+                                            $differenzaRimanente -= $aggiustamento;
+                                        }
+
+                                        $nuovoIncassoTassista = max(0, round($valoreAttuale + $aggiustamento, 2)); // Non andare sotto zero
+
+                                        // Aggiorna l'incasso del singolo tassista
+                                        $updateIncassoData = ['valore_incasso' => $nuovoIncassoTassista];
+                                        $updateIncassoWhere = "data_incasso = '" . $database->escapeString($dataCorrispettivo) . "' AND tassista_id = '" . $database->escapeString($tassistaId) . "'";
+                                        $database->update('incassi_taxi', $updateIncassoData, $updateIncassoWhere);
+                                    }
+                            }
+
+                            // 6. Aggiorna il corrispettivo totale
+                                $updateCorrispettivoData = ['valore_corrispettivo' => $nuovoValoreCorrispettivo];
+                                $updateCorrispettivoWhere = "data = '" . $database->escapeString($dataCorrispettivo) . "'";
+                                $database->update('corrispettivi_taxi', $updateCorrispettivoData, $updateCorrispettivoWhere);
+
+                                $database->commit();
+                                $alert = "Corrispettivo del $dataCorrispettivo modificato. Differenza distribuita sugli incassi.";
+                                $tipo_alert = 'success';
+
+                        } catch (Exception $e) {
+                            $database->rollback();
+                            $alert = "Errore durante la modifica del corrispettivo: " . $e->getMessage();
+                            $tipo_alert = 'danger';
+                        }
+                        $query = "SELECT ct.contabilizzato, ct.data, ct.giorno_settimana, ct.valore_corrispettivo,  COUNT(DISTINCT it.tassista_id) AS numero_tassisti
+                                  FROM corrispettivi_taxi ct
+                                  LEFT JOIN incassi_taxi it ON ct.data = it.data_incasso
+                                  WHERE 1=1"; // Clausola base
+                        if ($dataDa) $query .= " AND ct.data >= '$dataDa'";
+                        if ($dataA) $query .= " AND ct.data <= '$dataA'";
+                        // Applica filtro contabilizzazione solo se si cercano i corrispettivi aggregati
+                        if(isset($_POST['tipo'])) $query .= " AND ct.contabilizzato = '1'";
+                    }
+                }
+                // --- Esecuzione Query ---
+                try {
+                    // echo "<pre>Query: " . htmlspecialchars($query) . "</pre>"; // Debug query
+                    $corrispettivi = $database->query($query);
+                    if (empty($corrispettivi)) {
+                        $alert = "Nessun risultato trovato per i criteri specificati.";
+                        $tipo_alert = 'warning';
+                    }
+                } catch (Exception $e) {
+                    $alert = "Errore durante la ricerca nel database: " . $e->getMessage();
+                    $tipo_alert = 'danger';
                 }
             } else {
-                $corrispettivi = getCorrispettiviTaxi($database, '*', 'contabilizzato=0');  //CorrispettiviTaxi  
+                $corrispettivi = getCorrispettiviTaxi($database, date('Y'), 'contabilizzato=0');  //CorrispettiviTaxi  
             }
             $tassisti=$database->select('tassisti','id,Nome,Cognome,Dimissioni');
             $content = [
@@ -1053,13 +1243,15 @@
         }
     }
     // Funzione per ottenere i corrispettivi non contabilizzati
-    function getCorrispettiviTaxi(Database $database, ?int $annoRiferimento = null, string $contabilizzato = '0') {
+    function getCorrispettiviTaxi(Database $database, int $annoRiferimento = null, string $contabilizzato = '0') {
         // Imposta l'anno corrente se non fornito
         if ($annoRiferimento === null) {
             $annoRiferimento = (int)date('Y');
         }
         // Modifica la query per includere il conteggio dei tassisti distinti dalla tabella incassi_taxi
         $query = "SELECT
+                      ct.contabilizzato,
+                      ct.n_registrazione,
                       ct.data,
                       ct.giorno_settimana,
                       ct.valore_corrispettivo,

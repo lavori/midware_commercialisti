@@ -91,15 +91,53 @@
     </div>
 </div>
 <?php if($content!= '' && $content!= array()): ?>
+    <?php if(isset($_POST['tipo_action']) && ($_POST['tipo_action']=="ricerca" || $_POST['tipo_action']=="modifica_incasso" || $_POST['tipo_action']=="modifica_corrispettivi")): ?>
+        <div class="nk-block nk-block-lg">
+            <div class="card card-bordered card-preview">
+                <div class="card-inner">
+                    <?php $selectedTaxistaId = $_POST['taxista'] ?? '0'; ?>
+                    <h6 class="title mb-3">Parametri Utilizzati per la Ricerca<?php if($selectedTaxistaId == '0') echo " Corrispettivi"; else echo " Incassi"; ?></h6>
+                    <ul class="list list-sm list-checked">
+                        <li>
+                            <strong>Taxista:</strong>
+                            <?php
+                                if ($selectedTaxistaId === '0') {
+                                    echo "Tutti i Taxisti";
+                                } else {
+                                    $found = false;
+                                    foreach ($tassisti as $taxi) {
+                                        if ($taxi['id'] == $selectedTaxistaId) {
+                                            echo htmlspecialchars($taxi['Nome'] . " " . $taxi['Cognome'], ENT_QUOTES, 'UTF-8');
+                                            $found = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!$found) echo "ID: " . htmlspecialchars($selectedTaxistaId, ENT_QUOTES, 'UTF-8'); // Fallback if name not found
+                                }
+                            ?>
+                        </li>
+                        <?php if (!empty($_POST['da']) || !empty($_POST['a'])): ?>
+                        <li><strong>Periodo:</strong> Dal <?php echo htmlspecialchars($_POST['da'] ?? 'N/D', ENT_QUOTES, 'UTF-8'); ?> al <?php echo htmlspecialchars($_POST['a'] ?? 'N/D', ENT_QUOTES, 'UTF-8'); ?></li>
+                        <?php endif; ?>
+                        <?php if ($selectedTaxistaId === '0'): // Mostra il tipo solo se si cercano i corrispettivi aggregati ?>
+                        <li><strong>Stato:</strong> <?php echo isset($_POST['tipo']) ? 'Contabilizzato' : 'Non Contabilizzato'; ?></li>
+                        <?php endif; ?>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
 <div class="nk-block nk-block-lg">
     <div class="card card-bordered card-preview">
         <div class="card-inner">
             <?php 
                 $th=array_keys($content[0]);
-                //echo "<pre\>"; print_r($content); echo "</pre>";
+                //echo "<pre>"; print_r($th); echo "</pre>";
             ?>
+            <!-- solo se sono corrispettivi -->
             <form action="/corrispettivi/invio-corrispettivi" method="POST" class="form-validate">
                 <input type="hidden" id="tipo" name="tipo" value="taxi">
+            <!-- solo se sono corrispettivi -->
                 <table class="datatable-init-export table">
                     <thead>
                         <tr>
@@ -115,7 +153,7 @@
                         <?php 
                             foreach($th as $k => $v):
                                 // Salta la colonna 'contabilizzato'
-                                if ($v === 'contabilizzato') continue;
+                                if ($v === 'contabilizzato' || $v==='n_registrazione') continue;
                                 // Modifica la stringa prima della stampa
                                 $stringa_modificata = str_replace('_', ' ', $v); 
                                 $stringa_modificata = ucwords($stringa_modificata); 
@@ -129,6 +167,7 @@
                     <?php foreach($content as $k => $v): ?>
                         <tr>
                             <?php foreach($v as $k2 => $v2): ?>
+                                <?php if ($k2==="n_registrazione")  continue; ?>
                             <!-- Cella Checkbox per riga -->
                             <?php 
                                 if($ricerca=="corrispettivi_taxisti" && $k2 === 'contabilizzato'): 
@@ -142,7 +181,7 @@
                                     <label class="custom-control-label" for="corrispettivo<?php echo $k; ?>"></label>
                                 </div>
                                 <?php else: ?>
-                                <h6><mark>Contabilizzato</mark></h6>    
+                                <h6><mark>Reg.N. <?php echo $v['n_registrazione']; ?></mark></h6>    
                                 <?php endif; ?>
                             </td>
                             <?php 
@@ -153,7 +192,7 @@
                                         $data_obj_for_sort = new DateTime($v2); // $v2 è nel formato YYYY-MM-DD dal DB
                                         $dataOrderAttr = ' data-order="' . $data_obj_for_sort->format('Ymd') . '"'; // Formato YYYYMMDD per ordinamento
                                     }
-                                ?>
+                            ?>
                             <td class="vm nk-tb-col tb-col-sm" <?php echo $dataOrderAttr; ?>>
                                 <?php
                                     if ($k2 == "data") {
@@ -175,6 +214,13 @@
                                     } elseif (strpos($k2, "valore") !== false) {
                                         // Se il nome del campo contiene "valore", aggiungi il simbolo dell'euro
                                         echo "€ " . htmlspecialchars($v2, ENT_QUOTES, 'UTF-8');
+                                    } elseif (strpos($k2, "incasso_contabilizzato") !== false) {
+                                        // Se il nome del campo contiene "incasso_contabilizzato", interpreta 0 come non contabilizzato e 1 come contabilizzato
+                                        if($v2==0){
+                                            echo "Non contabilizzato";
+                                        } else {
+                                            echo "Contabilizzato"; 
+                                        }
                                     } else {
                                         // Altrimenti, stampa il valore normalmente
                                         echo htmlspecialchars($v2, ENT_QUOTES, 'UTF-8');
@@ -192,6 +238,21 @@
                                             <a class="dropdown-toggle btn btn-icon btn-trigger" data-bs-toggle="dropdown"><em class="icon ni ni-more-h"></em></a>
                                             <div class="dropdown-menu dropdown-menu-end">
                                                 <?php if($ricerca=='incassi_taxisti'): ?>
+                                                <ul class="link-list-opt no-bdr">
+                                                    <?php if ($v['incasso_contabilizzato']==0):?>
+                                                    <li>
+                                                        <a style="cursor: pointer;" onClick="apriModal('Modifica Incasso','Gestione corrispettivi','corrispettivi/modifica_incasso','<?php echo $v['data']."|".$_POST['taxista']."|".$_POST['da']."|".$_POST['a']; ?>','0')">
+                                                            <em class="icon ni ni-shield-star"></em>
+                                                            <span>Modifica incasso</span>
+                                                        </a>
+                                                    </li>
+                                                    <?php else: ?>
+                                                    <li>
+                                                        <em class="icon ni ni-shield-star"></em>
+                                                        <span>Incasso contabilizzato</span>
+                                                    </li>
+                                                    <?php endif; ?>
+                                                </ul>
                                                 <?php else: ?>
                                                 <ul class="link-list-opt no-bdr">
                                                     <li>
@@ -200,14 +261,20 @@
                                                             <span>Visualizza dettagli</span>
                                                         </a>
                                                     </li>
-                                                    <?php if($v['contabilizzato']==0): ?>
+                                                    <?php 
+                                                        if($v['contabilizzato']==0): 
+                                                            if(isset($_POST) && isset($_POST['da']))$da = $_POST['da']; else $da='';
+                                                            if(isset($_POST) && isset($_POST['a']))$a = $_POST['a']; else $a='';
+                                                    ?>
                                                     <li>
-                                                        <a style="cursor: pointer;" onClick="apriModal('Dettaglio Corrispettivo','Gestione corrispettivi','corrispettivi/dettaglio_corrispettivo','<?php echo $v['data']; ?>','1')">
+                                                        <a style="cursor: pointer;" onClick="apriModal('Modifica Corrispettivo','Gestione corrispettivi','corrispettivi/modifica_corrispettivo','<?php echo $v['data']."|".$da."|".$a; ?>','0')">
                                                             <em class="icon ni ni-edit"></em>
                                                             <span>Modifica Corrispettivo</span>
                                                         </a>
                                                     </li>
-                                                    <?php endif; ?>
+                                                    <?php 
+                                                        endif; 
+                                                    ?>
                                                 </ul>
                                                 <?php endif; ?>
                                             </div>
@@ -218,7 +285,8 @@
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
-                                </table>
+                </table>
+            <!-- solo se sono corrispettivi -->
                 <div class="row g-3">
                     <div class="col-12">
                         <div class="form-group">
@@ -230,6 +298,7 @@
                     </div>
                 </div>
             </form>
+            <!-- solo se sono corrispettivi -->
         </div>
     </div>
 </div>
