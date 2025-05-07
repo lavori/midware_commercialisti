@@ -21,20 +21,23 @@ $menu=array(
     'settings' => array(
         'Ruoli Utenti' => array('/settings/ruoli','users','azure'),
         'Categorie Merciologiche' => array('/settings/cat-merciologiche','puzzle','azure'),
+        'Aziende' => array('/settings/aziende','icon ni ni-building-fill','azure'), 
     ),
     'users' => array(
-        'Utenti' => array('/users','users','azure')
+        'Utenti' => array('/users','users','azure'),
+        'Tassisti' => array('/users/tassisti','meter','azure'),
+
     ),
     'corrispettivi' => array(
         'corrispettivi operatori' => array(
             'Gestione corrispettivi' => array('/corrispettivi','coins','primary'),
             'Generazione corrispettivi' => array('/corrispettivi/corrispettivi_multipli','setting','primary')
         ),
-        'corrispettivi tassisti' => array(
-            'Gestione corrispettivi' => array('/corrispettivi','coins','primary'),
-            'Generazione corrispettivi' => array('/corrispettivi/corrispettivi_multipli','setting','primary')
+        'corrispettivi taxisti' => array(
+            'Gestione corrispettivi' => array('/corrispettivi/taxisti','coins','primary'),
+            'Generazione incassi/corrispettivi' => array('corrispettivi/ridistribuisci-incassi','setting','primary')
         )
-    )
+    )   
 );
 
 $prepath="C:\\xampp\\video\\";

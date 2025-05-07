@@ -205,7 +205,11 @@
 
     <script>
         //Funzione per aprire il modal
+<<<<<<< HEAD
         async function apriModal(a, b, c, d = 'new', table = '') {
+=======
+        async function apriModal(a, b, c, d = 'new') {
+>>>>>>> f79c4ff8185eb035c1453524a5f456bfcb729d26
             var url = "/include/componenti/" + c + ".php";
             if(d=="new"){
                 var param='';
@@ -222,6 +226,7 @@
                 var contentModal = document.getElementById('contentModal');
                 contentModal.innerHTML = contenuto;
                 $('#contentModal select').select2();
+<<<<<<< HEAD
                 $(document).ready(function() {
                     if(table==1){
                         NioApp.DataTable('.datatable-init-export', {
@@ -233,6 +238,8 @@
                         $.fn.DataTable.ext.pager.numbers_length = 7;
                     }
                 });
+=======
+>>>>>>> f79c4ff8185eb035c1453524a5f456bfcb729d26
                 // Footer MODAL   
                 var footerModal = document.getElementById('footerModal');
                 footerModal.innerHTML = b;
@@ -243,6 +250,7 @@
                 console.error('Errore:', error);
             }
         }
+<<<<<<< HEAD
         //Funzione per ridimensionare il modale
         function ridimensionaModale(larghezza, altezza) {
             var divModal = document.getElementById("Modal");
@@ -256,6 +264,8 @@
                 }
             }
         }
+=======
+>>>>>>> f79c4ff8185eb035c1453524a5f456bfcb729d26
         //Funzione per aprire il modal
         function chiudiModal() {
             var divModal = document.getElementById("Modal");

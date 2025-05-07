@@ -1,11 +1,10 @@
 <?php
-
 class Database {
     private $host;
     private $username;
     private $password;
     private $database;
-    private $connection;
+    private $connection; // Dichiara esplicitamente la proprietà
 
     public function __construct($host, $username, $password, $database) {
         $this->host = $host;
