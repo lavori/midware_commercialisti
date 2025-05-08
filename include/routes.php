@@ -66,6 +66,64 @@
              // Restituisci l'output HTML generato
              return $result;
         });
+        //Route categorie merciologiche
+        $router->addRoute('/settings/aziende', function () use ($database, $dominio, $titolo, $apps, $menu) {
+
+            //Azioni col GET
+            if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                //Delete
+                if(isset($_GET['action']) &&  $_GET['action']=='delete' && isset($_GET['id'])) {
+                    $data=array(
+                        'attiva'=>'No'
+                    );
+                    $where= 'id= '.$_GET['id'];
+                    $database->update('aziende', $data, $where);
+                }
+            }
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                //Insert
+                if (isset($_POST['action']) && $_POST['action']=='insert') {
+
+                    $data = array(
+                        'ragione_sociale' => $_POST['ragione_sociale'],
+                        'dominioAPI' => $_POST['dominioAPI'],
+                        'attiva' => 'Si'
+                    );
+
+                    $database->insert('aziende', $data);
+                }
+                //Update
+                if (isset($_POST['aggiorna_id']) && !empty($_POST['aggiorna_id'])) {
+                    $data = array(
+                        'ragione_sociale' => $_POST['ragione_sociale'],
+                        'dominioAPI' => $_POST['dominioAPI'],
+                    );
+
+                    $where = "id= " . $_POST['aggiorna_id'];
+
+                    $database->update('aziende', $data, $where);
+                }
+            }
+
+            $aziende = $database->select("aziende", "*", "attiva='Si'");
+
+            $content = [
+                'dominio' => $dominio,
+                'titolo' => $titolo,
+                'title' => 'Settings > Aziende',
+                'serp' => '/settings/aziende',
+                'menu' => $menu['settings'],
+                'apps' => $apps,
+                'h1' => 'CRM di gestione aziendale',
+                'h2' => 'Aziende',
+                'content' => $aziende
+            ];
+            // Utilizza la funzione render per generare l'output HTML
+            $result = render('settings/aziende', $content);
+            // Restituisci l'output HTML generato
+            return $result;
+        });
         //Route ruoli
         $router->addRoute('/settings/ruoli', function () use ($database, $dominio, $titolo, $apps, $menu)  {
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -286,6 +344,70 @@
                 'content' => $contenuto
             ];
             $result = render('user/users', $content);
+            return $result;
+        });
+        /*Route tassisti*/
+        $router->addRoute('/users/tassisti', function () use ($database, $dominio, $titolo, $apps, $menu) {
+
+            //delete
+            if (isset($_POST['delete']) && !empty($_POST['delete'])) {
+                //echo'entro';exit();
+                $data = array(
+                    'visibilita' => 0
+                );
+                $where = "id= " . $_POST['delete'];
+                $database->update("tassisti", $data, $where);
+
+            }
+
+            //update
+            if (isset($_POST['aggiorna_id']) && !empty($_POST['aggiorna_id'])) {
+                //print_r($_POST);exit();
+                $data = array(
+                    'nome' => $_POST['nome'],
+                    'cognome' => $_POST['cognome'],
+                    'cf' => $_POST['cf'],
+                    'associato' => $_POST['associato'],
+                );
+
+                $where = "id= " . $_POST['aggiorna_id'];
+
+                $database->update('tassisti', $data, $where);
+            }
+
+            //insert
+            if (isset($_POST['insert']) && !empty($_POST['insert'])) {
+                //print_r($_POST);exit();
+                $data = array(
+                    'nome' => $_POST['nome'],
+                    'cognome' => $_POST['cognome'],
+                    'cf' => $_POST['cf'],
+                    'associato' => $_POST['associato'],
+                );
+                $database->insert("tassisti", $data);
+            }
+
+            $wheretassisti = "visibilita=1";
+            $tassisti = $database->select("tassisti", "*", $wheretassisti);
+
+
+            $content = [
+                'dominio' => $dominio,
+                'titolo' => $titolo,
+                'tassisti' => $tassisti,
+                'title' => 'Utenti > Tassisti',
+                'serp' => '/user/tassisti',
+                'menu' => $menu['users'],
+                'apps' => $apps,
+                'h1' => 'Gestione Tassisti',
+                'h2' => 'Tassisti',
+                'date' => array(),
+                'content' => "Questa è la tua dashboard"
+            ];
+            // Utilizza la funzione render per generare l'output HTML
+            $result = render('user/tassisti', $content);
+
+            // Restituisci l'output HTML generato
             return $result;
         });
         /*Route corrispettivi*/
