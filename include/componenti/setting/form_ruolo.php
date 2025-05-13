@@ -22,6 +22,56 @@
     }
     $database->disconnect();
 ?>
+
+<style>
+    /* Stile base per ogni scelta selezionata (il "tag") */
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
+    background-color: #f0f0f0; /* Un grigio chiaro, puoi usare un colore del tuo tema */
+    border: 1px solid #d1d1d1;
+    border-radius: 12px;      /* Angoli arrotondati */
+    margin-right: 4px;
+    margin-top: 4px;
+    font-size: 1.2em;
+    color: #333;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice:hover {
+    background-color: #e9ecef; /* Leggero cambio al passaggio del mouse */
+    border-color: #adb5bd;
+}
+
+/* Stile per il testo della scelta */
+.select2-container--default .select2-selection--multiple .select2-selection__choicedisplay {
+    padding-right: 5px; /* Aggiunge un po' di spazio prima della X */
+}
+
+/* Stile per il pulsante di rimozione (la 'x') */
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    color: #6c757d; /* Colore della 'x' */
+    font-weight: bold;
+    font-size: 1.5em;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, color 0.2s ease;
+    padding: 0 3px; /* Aggiunge un po' di padding attorno alla X */
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+    color: #e85347; /* Colore più scuro o un rosso per indicare rimozione */
+    opacity: 1;
+    cursor: pointer;
+}
+
+/* Se il pulsante di rimozione è un <button> (come nel tuo caso),
+   potresti voler resettare alcuni stili del bottone */
+.select2-container--default .select2-selection--multiple .select2-selection__choice button.select2-selectionchoice__remove {
+    background-color: transparent;
+    border: none;
+    line-height: 1; /* Allinea meglio la 'x' verticalmente */
+}
+
+</style>
+
 <form id="ruolo" class="form-validate is-alter" novalidate="novalidate">
 <?php if ($azione=='update'):?>
     <input type="hidden" id="id" name="id" value="<?php echo $id; ?>">

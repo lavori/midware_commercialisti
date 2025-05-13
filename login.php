@@ -21,7 +21,7 @@ echo "<pre>"; print_r($_POST); echo"</pre>";
 
    if(isset($_POST['action']) && $_POST['action']=="login"){  
         require_once('./include/db.php');
-        //echo "QUI<br>"; 
+        echo "QUI<br>"; 
         $database = new Database($host, $username, $password, $db); 
         $database->connect(); 
         // Query login

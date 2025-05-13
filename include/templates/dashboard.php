@@ -47,7 +47,7 @@
                                         <h6 class="title">Pannello in cui inserire informazioni riassuntive</h6>
                                     </div>
                                     <div class="nk-ck-sm">Contenuto
-                                      <pre><?php //print_r($_SESSION); ?><pre>
+                                      <pre><?php print_r($_SESSION); ?><pre>
                                     </div>
                                 </div>
                             </div><!-- .card-preview -->

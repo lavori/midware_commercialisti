@@ -1,10 +1,11 @@
 <?php
+
 class Database {
     private $host;
     private $username;
     private $password;
     private $database;
-    private $connection; // Dichiara esplicitamente la proprietà
+    private $connection;
 
     public function __construct($host, $username, $password, $database) {
         $this->host = $host;
@@ -12,108 +13,207 @@ class Database {
         $this->password = $password;
         $this->database = $database;
     }
+
     public function connect() {
         $this->connection = mysqli_connect($this->host, $this->username, $this->password, $this->database);
-        if (!$this->connection) {
-            die("Errore di connessione al database: " . mysqli_connect_error());
+        if ($this->connection->connect_error) {
+            die("Errore di connessione al database: " . $this->connection->connect_error);
         }
     }
+
     public function disconnect() {
-        mysqli_close($this->connection);
+        if ($this->connection) {
+            mysqli_close($this->connection);
+        }
+        $this->connection = null; // Important to prevent errors on multiple disconnects
     }
+
+    public function beginTransaction() {
+        $this->connection->begin_transaction();
+    }
+
+    public function commit() {
+        $this->connection->commit();
+    }
+
+    public function rollback() {
+        $this->connection->rollback();
+    }
+
     public function insert($table, $data) {
         $columns = implode(", ", array_keys($data));
-        $values = "'" . implode("', '", array_values($data)) . "'";
+        $values = "";
+        foreach ($data as $value) {
+            if ($value === null) {
+                $values .= "NULL, ";
+            } elseif (is_string($value)) {
+                $values .= "'" . $this->connection->real_escape_string($value) . "', ";
+            } else {
+                $values .= $value . ", ";
+            }
+        }
+        $values = rtrim($values, ", ");
+
         $query = "INSERT INTO $table ($columns) VALUES ($values)";
-        //echo $query; echo"<hr>";
-        mysqli_query($this->connection, $query);
+        $result = $this->connection->query($query);
+
+        if (!$result) {
+            throw new Exception("Errore nella query di inserimento: " . $this->connection->error . " - Query: " . $query);
+        }
+
+        return $this->connection->insert_id; // Return last inserted ID
     }
+
     public function update($table, $data, $where) {
         $set = "";
         foreach ($data as $column => $value) {
-            if ($value === "NOW()") {
-                $set .= "$column = $value, ";
-            } elseif (is_numeric($value) || $value=="NULL") {
+            if ($value === null) {
+                $set .= "$column = NULL, ";
+            } elseif ($value === "NOW()") {
+                $set .= "$column = NOW(), ";
+            } elseif (is_numeric($value)) {
                 $set .= "$column = $value, ";
             } else {
-                $set .= "$column = '$value', ";
+                $set .= "$column = '" . $this->connection->real_escape_string($value) . "', ";
             }
         }
         $set = rtrim($set, ", ");
+
         $query = "UPDATE $table SET $set WHERE $where";
-        //debug
-        //echo $query; exit();
-        mysqli_query($this->connection, $query);
+        $result = $this->connection->query($query);
+
+        if (!$result) {
+            throw new Exception("Errore nella query di aggiornamento: " . $this->connection->error . " - Query: " . $query);
+        }
+
+        return $this->connection->affected_rows; // Return number of affected rows
     }
+
     public function select($table, $columns = "*", $where = "") {
-        if(is_array($columns)){
-            $colonne=implode("," ,   $columns);
-        } else {
-            $colonne=$columns;
+        $query = "SELECT " . (is_array($columns) ? implode(", ", $columns) : $columns) . " FROM $table";
+
+        if ($where) {
+            $query .= " WHERE " . (is_array($where) ? $this->buildWhereClause($where) : $where);
         }
-        $query = "SELECT ". $colonne . " FROM $table";
-        if ($where != "") {
-            if(is_array($where)){
-                $query .=" WHERE 1";
-                foreach($where as $key => $value){
-                    $value_array = explode("|", $value);
-                    $query .= " and $key $value_array[0] '$value_array[1]'";
-                }        
-            }else{
-                $query .= " WHERE $where";
-            }
+
+        $result = $this->connection->query($query);
+
+        if (!$result) {
+            throw new Exception("Errore nella query di selezione: " . $this->connection->error . " - Query: " . $query);
         }
-        //debug
-        //echo $query; exit();
-        $result = mysqli_query($this->connection, $query);
-        $rows = [];
-        while ($row = mysqli_fetch_assoc($result)) {
-            $rows[] = $row;
-        }
-        return $rows;
+
+        return $result->fetch_all(MYSQLI_ASSOC);
     }
+
     public function query($query) {
         $result = mysqli_query($this->connection, $query);
-        $rows = [];
-        while ($row = mysqli_fetch_assoc($result)) {
-            $rows[] = $row;
+    
+        // Modifica qui: controlla se la query ha avuto successo
+        if ($result === TRUE) {
+            return TRUE; // Oppure potresti restituire il numero di righe affette:  return mysqli_affected_rows($this->connection);
+        } elseif ($result) { // Se è un SELECT, continua a recuperare i dati
+            $rows = [];
+            while ($row = mysqli_fetch_assoc($result)) {
+                $rows[] = $row;
+            }
+            return $rows;
+        } else {
+            // Gestione dell'errore (importante!)
+            die("Errore nella query: " . mysqli_error($this->connection) . " - Query: " . $query);
         }
-        return $rows;
     }
-    public function delete($table, $where) {
-        $query = "DELETE FROM $table WHERE $where";
-        mysqli_query($this->connection, $query);
-    }
+
     public function query_nr($query) {
         $result = mysqli_query($this->connection, $query);
+        if (!$result) {
+            throw new Exception("Errore nella query: " . $this->connection->error . " - Query: " . $query);
+        }
+        return $result; // Restituisci il risultato per eventuali controlli
     }
+
+    public function delete($table, $where) {
+        $query = "DELETE FROM $table WHERE $where";
+        $result = $this->connection->query($query);
+
+        if (!$result) {
+            throw new Exception("Errore nella query di eliminazione: " . $this->connection->error . " - Query: " . $query);
+        }
+
+        return $this->connection->affected_rows;
+    }
+
     public function prepareInsert($table, $columns, $placeholders) {
         $sql = "INSERT INTO $table ($columns) VALUES ($placeholders)";
-        $this->stmt = mysqli_prepare($this->connection, $sql);
+        $this->stmt = $this->connection->prepare($sql);
+
+        if (!$this->stmt) {
+            throw new Exception("Errore nella preparazione della query: " . $this->connection->error);
+        }
+
         return $this->stmt;
     }
+
     public function bindParams($types, ...$values) {
-        $bindParams = [$this->stmt, $types];
-        foreach ($values as $value) {
+        if (!$this->stmt) {
+            throw new Exception("Errore: Statement non inizializzato.");
+        }
+
+        $bindParams = [$types];
+        foreach ($values as &$value) {
             $bindParams[] = &$value;
         }
-        call_user_func_array('mysqli_stmt_bind_param', $bindParams);
+        if (!call_user_func_array([$this->stmt, 'bind_param'], $bindParams)) {
+            throw new Exception("Errore nel binding dei parametri: " . $this->stmt->error);
+        }
     }
+
+    public function execute() {
+        if (!$this->stmt) {
+            throw new Exception("Errore: Statement non inizializzato.");
+        }
+        if (!$this->stmt->execute()) {
+            throw new Exception("Errore nell'esecuzione dello statement: " . $this->stmt->error);
+        }
+        return $this->stmt->insert_id ?: $this->stmt->affected_rows;
+    }
+
     public function countRows($table, $where = "") {
         $query = "SELECT COUNT(*) AS total_rows FROM $table";
-    
-        if (!empty($where)) {
-            $query .= " WHERE $where";
+        if ($where) {
+            $query .= " WHERE " . (is_array($where) ? $this->buildWhereClause($where) : $where);
         }
-    
-        $result = mysqli_query($this->connection, $query);
-        $row = mysqli_fetch_assoc($result);
-    
-        return $row['total_rows'];
-    }    
+
+        $result = $this->connection->query($query);
+
+        if (!$result) {
+            throw new Exception("Errore nella query di conteggio righe: " . $this->connection->error . " - Query: " . $query);
+        }
+
+        return (int)$result->fetch_object()->total_rows;
+    }
+
     public function lastId() {
-        return mysqli_insert_id($this->connection);
+        return $this->connection->insert_id;
+    }
+
+    private function buildWhereClause($where) {
+        $clause = "1"; // Default to always true if where array is empty
+        foreach ($where as $key => $value) {
+            if (is_array($value)) {
+                list($operator, $val) = $value;
+                $clause .= " AND $key $operator '" . $this->connection->real_escape_string($val) . "'";
+            } else {
+                $clause .= " AND $key = '" . $this->connection->real_escape_string($value) . "'";
+            }
+        }
+        return $clause;
+    }
+
+    /**
+     * Escapes special characters in a string for use in an SQL statement, using the current connection
+     */
+    public function escapeString(string $value): string {
+        return $this->connection->real_escape_string($value);
     }
 }
-
 ?>
