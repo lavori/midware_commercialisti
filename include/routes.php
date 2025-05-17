@@ -348,61 +348,73 @@
         });
         /*Route tassisti*/
         $router->addRoute('/users/tassisti', function () use ($database, $dominio, $titolo, $apps, $menu) {
-
+            $completato="";
             //delete
-            if (isset($_POST['delete']) && !empty($_POST['delete'])) {
+            if (isset($_GET['action']) && $_GET['action']=='delete') {
                 //echo'entro';exit();
                 $data = array(
                     'visibilita' => 0
                 );
-                $where = "id= " . $_POST['delete'];
+                $where = "id= " . $_GET['id'];
                 $database->update("tassisti", $data, $where);
-
+                $completato= "delete_ok";
             }
-
             //update
-            if (isset($_POST['aggiorna_id']) && !empty($_POST['aggiorna_id'])) {
-                //print_r($_POST);exit();
+            if (isset($_POST['action']) && $_POST['action']=='update') {
+                //echo'<pre>';print_r($_POST);echo'</pre>';exit();
+                $giorni_serializzati = serialize($_POST['giorni']);
                 $data = array(
                     'nome' => $_POST['nome'],
                     'cognome' => $_POST['cognome'],
-                    'cf' => $_POST['cf'],
-                    'associato' => $_POST['associato'],
+                    'licenza'=> $_POST['licenza'],
+                    'tel'=> $_POST['tel'],
+                    'email'=> $_POST['email'],
+                    'targa'=> $_POST['targa'],
+                    'turni'=> $giorni_serializzati,
+                    'data_assunzione'=> $_POST['data'],
+                    'visibilita' => 1,
                 );
 
-                $where = "id= " . $_POST['aggiorna_id'];
+                $where = "id= " . $_POST['id'];
 
                 $database->update('tassisti', $data, $where);
+                $completato="update_ok";
             }
-
             //insert
-            if (isset($_POST['insert']) && !empty($_POST['insert'])) {
-                //print_r($_POST);exit();
+            if (isset($_POST['action']) && $_POST['action']=='insert') {
+                //serializzazione turni tassisista
+                $giorni_serializzati = serialize($_POST['giorni']);
                 $data = array(
                     'nome' => $_POST['nome'],
                     'cognome' => $_POST['cognome'],
-                    'cf' => $_POST['cf'],
-                    'associato' => $_POST['associato'],
+                    'licenza'=> $_POST['licenza'],
+                    'tel'=> $_POST['tel'],
+                    'email'=> $_POST['email'],
+                    'targa'=> $_POST['targa'],
+                    'turni'=> $giorni_serializzati,
+                    'data_assunzione'=> $_POST['data'],
+                    'visibilita' => 1,
                 );
                 $database->insert("tassisti", $data);
+                $completato="insert_ok";
             }
 
-            $wheretassisti = "visibilita=1";
-            $tassisti = $database->select("tassisti", "*", $wheretassisti);
-
+            //Prendo i dati utili solo per essere stampati in tabella, per il resto ci sarà una tabella info
+            $wheretassisti = "visibilita= 1";
+            $tassisti = $database->select("tassisti", "id, nome, cognome, email, targa", $wheretassisti);
 
             $content = [
                 'dominio' => $dominio,
                 'titolo' => $titolo,
-                'tassisti' => $tassisti,
+                'content_tabella' => $tassisti,
                 'title' => 'Utenti > Tassisti',
-                'serp' => '/user/tassisti',
+                'serp' => '/users/tassisti',
                 'menu' => $menu['users'],
                 'apps' => $apps,
                 'h1' => 'Gestione Tassisti',
                 'h2' => 'Tassisti',
                 'date' => array(),
-                'content' => "Questa è la tua dashboard"
+                'completato' => $completato
             ];
             // Utilizza la funzione render per generare l'output HTML
             $result = render('user/tassisti', $content);

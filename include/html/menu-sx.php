@@ -77,6 +77,11 @@
    </div>
 </div> 
 <script>
+<<<<<<< HEAD
+    function lasstlogin(a){
+=======
+    function lastlogin(a){ //Corretto da lasstlogin a lastlogin
+>>>>>>> f79c4ff8185eb035c1453524a5f456bfcb729d26
     function lasstlogin(a){
         alert('Ultimo accesso al CRM aziendale: '+a);
     }

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ita" class="js">
 <?php include('./include/html/head.php'); ?>
+
 <body class="nk-body npc-default has-apps-sidebar has-sidebar ">
     <div class="nk-app-root">
         <!--Menu sx esterno-->
@@ -21,16 +22,16 @@
                             <div class="nk-content-body">
                                 <!-- Contenuto Pabina -->
                                 <div class="nk-block">
-                                    <div class="row g-gs"> 
+                                    <div class="row g-gs">
 
 
                                         <?= $pageContent; ?>
 
-                                        
+
                                     </div><!-- .row -->
                                 </div><!-- .nk-block -->
                                 <!-- Contenuto Pabina -->
-                                
+
                             </div>
                         </div>
                     </div>
@@ -42,7 +43,7 @@
         <!-- main @e -->
     </div>
     <!-- app-root @e -->
-    
+
     <div class="modal fade" tabindex="-1" role="dialog" id="region">
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
@@ -166,24 +167,24 @@
         </div><!-- .modla-dialog -->
     </div><!-- .modal -->
     <!-- Modal -->
-        <div class="modal" id="Modal" >
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <a onClick="chiudiModal()" class="close" data-bs-dismiss="modal" aria-label="Close">
-                        <em class="icon ni ni-cross"></em>
-                    </a>
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="titoloModal">&nbsp;</h5>
-                    </div>
-                    <div class="modal-body" id="contentModal">
-                        &nbsp;
-                    </div>
-                    <div class="modal-footer bg-light">
-                        <span class="sub-text" id="footerModal">&nbsp;</span>
-                    </div>
+    <div class="modal" id="Modal">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <a onClick="chiudiModal()" class="close" data-bs-dismiss="modal" aria-label="Close">
+                    <em class="icon ni ni-cross"></em>
+                </a>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="titoloModal">&nbsp;</h5>
+                </div>
+                <div class="modal-body" id="contentModal">
+                    &nbsp;
+                </div>
+                <div class="modal-footer bg-light">
+                    <span class="sub-text" id="footerModal">&nbsp;</span>
                 </div>
             </div>
         </div>
+    </div>
 
 
     <!-- Modal -->
@@ -197,20 +198,20 @@
     <script src="/assets/js/charts/gd-analytics.js?ver=3.1.3"></script>
     <script src="/assets/js/libs/jqvmap.js?ver=3.1.3"></script>
     <script src="/assets/js/libs/datatable-btns.js?ver=3.1.3"></script>
-    
+
     <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
         //Funzione per aprire il modal
         async function apriModal(a, b, c, d = 'new', table = '') {
             var url = "/include/componenti/" + c + ".php";
-            if(d=="new"){
-                var param='';
+            if (d == "new") {
+                var param = '';
             } else {
-                var param='id='+d;
+                var param = 'id=' + d;
             }
             try {
                 var contenuto = await componente(url, param);
@@ -222,8 +223,8 @@
                 var contentModal = document.getElementById('contentModal');
                 contentModal.innerHTML = contenuto;
                 $('#contentModal select').select2();
-                $(document).ready(function() {
-                    if(table==1){
+                $(document).ready(function () {
+                    if (table == 1) {
                         NioApp.DataTable('.datatable-init-export', {
                             responsive: {
                                 details: true
@@ -252,7 +253,7 @@
                 // Imposta anche lo stile per il contentModal per assicurarti che si adatti.
                 var contentModal = document.getElementById("contentModal");
                 if (contentModal) {
-                contentModal.style.maxHeight = 'none'; //Rimuove l'altezza massima
+                    contentModal.style.maxHeight = 'none'; //Rimuove l'altezza massima
                 }
             }
         }
@@ -261,13 +262,13 @@
             var divModal = document.getElementById("Modal");
             //Titolo MODAL
             var titoloModal = document.getElementById('titoloModal');
-                titoloModal.innerHTML = '&nbsp;';
+            titoloModal.innerHTML = '&nbsp;';
             //Contenuto MODAL
             var contentModal = document.getElementById('contentModal');
-                contentModal.innerHTML = '&nbsp;';
+            contentModal.innerHTML = '&nbsp;';
             //Footer MODAL
             var footerModal = document.getElementById('footerModal');
-                footerModal.innerHTML = '&nbsp;';
+            footerModal.innerHTML = '&nbsp;';
             // Mostra il modal
             divModal.style.display = 'none'
             divModal.classList.remove('show');
@@ -297,15 +298,33 @@
                 xhr.send(b);
             });
         }
+        //Funzione per verificare i campi obbligatori
+        function validaCampiObbligatori(formData, campiObbligatori) {
+            var campiNonValidi = [];
+
+            campiObbligatori.forEach(function (campo) {
+                var valore = formData[campo];
+                if (
+                    valore === undefined ||
+                    valore === null ||
+                    (typeof valore === 'string' && valore.trim() === '') ||
+                    (Array.isArray(valore) && valore.length === 0)
+                ) {
+                    campiNonValidi.push(campo);
+                }
+            });
+
+            return campiNonValidi.length > 0 ? campiNonValidi : true;
+        }
         //Funzione per la Raccolta dati di un FORM
-        function raccoltadati(a,b){
+        function raccoltadati(a, b) {
             // Seleziona tutti gli input, radio button e selezioni nel form
             var form = document.getElementById(b);
             var inputs = form.querySelectorAll('input[type="hidden"], input[type="text"], input[type="radio"]:checked, select');
 
             var formData = {};
-            formData['tipo_action']=a;
-            inputs.forEach(function(input) {
+            formData['tipo_action'] = a;
+            inputs.forEach(function (input) {
                 if (input.type === 'radio') {
                     formData[input.id] = input.value; // Per radio, aggiungi solo quelli selezionati
                 } else if (input.type === 'select-multiple') {
@@ -320,14 +339,57 @@
             console.log(formData); // Mostra i dati raccolti nella console o fai altro con essi
             inviaFormConDati(formData);
         }
+        //Funzione modificata con il controllo dei dati prima di essere inseriti con la serializzazione dei checkbox
+        function raccoltadati_controllo(azione, formId, campiObbligatori) {
+            var form = document.getElementById(formId);
+            var inputs = form.querySelectorAll('input[type="hidden"], input[type="text"], input[type="number"], input[type="email"], input[type="radio"]:checked, select');
+
+            var formData = {};
+            formData['action'] = azione;
+
+            // Raccolta checkbox giornalieri
+            var checkboxes = form.querySelectorAll('input[name="giorni[]"]:checked');
+            var giorniSelezionati = [];
+
+            checkboxes.forEach(function (checkbox) {
+                giorniSelezionati.push(checkbox.value); // <-- Pusha solo il valore, non un array
+            });
+
+            // Assegna direttamente l'array dei giorni
+            formData['giorni'] = giorniSelezionati;
+
+
+            inputs.forEach(function (input) {
+                if (input.type === 'radio') {
+                    formData[input.id] = input.value;
+                } else if (input.type === 'select-multiple') {
+                    var selectedOptions = Array.from(input.selectedOptions).map(option => option.value);
+                    formData[input.id] = selectedOptions;
+                } else {
+                    formData[input.id] = input.value;
+                }
+            });
+
+
+
+            // ✅ Validazione dei campi obbligatori ricevuti come parametro
+            var esito = validaCampiObbligatori(formData, campiObbligatori);
+
+            if (esito !== true) {
+                alert('Compila i seguenti campi obbligatori: ' + esito.join(', '));
+                return;
+            }
+
+            inviaFormConDati(formData);
+        }
         // Funzione per aggiungere i dati al modulo e inviarlo
         function inviaFormConDati(formData) {
             // Seleziona il modulo
             var form = document.getElementById('mainForm');
-            
+
             // Rimuovi eventuali input nascosti precedenti per evitare duplicazioni
             var hiddenInputs = form.querySelectorAll('input[type="hidden"]');
-            hiddenInputs.forEach(function(input) {
+            hiddenInputs.forEach(function (input) {
                 input.remove();
             });
 
@@ -336,7 +398,7 @@
                 if (formData.hasOwnProperty(key)) {
                     if (Array.isArray(formData[key])) {
                         // Se il valore è un array (es. per select multiple)
-                        formData[key].forEach(function(value) {
+                        formData[key].forEach(function (value) {
                             var input = document.createElement('input');
                             input.type = 'hidden';
                             input.name = key + '[]'; // Indica un array in PHP
