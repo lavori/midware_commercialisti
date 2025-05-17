@@ -1,10 +1,11 @@
 <?php
+
 class Database {
     private $host;
     private $username;
     private $password;
     private $database;
-    private $connection; // Dichiara esplicitamente la proprietà
+    private $connection;
 
     public function __construct($host, $username, $password, $database) {
         $this->host = $host;
@@ -206,6 +207,13 @@ class Database {
             }
         }
         return $clause;
+    }
+
+    /**
+     * Escapes special characters in a string for use in an SQL statement, using the current connection
+     */
+    public function escapeString(string $value): string {
+        return $this->connection->real_escape_string($value);
     }
 }
 ?>

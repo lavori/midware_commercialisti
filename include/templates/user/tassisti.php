@@ -12,72 +12,98 @@
 
 <div class="nk-block nk-block-lg">
     <div class="card card-bordered card-preview">
+        <?php if (isset($completato) && $completato == 'insert_ok') { ?>
+            <div class="example-alert">
+                <div class="alert alert-success alert-icon">
+                    <em class="icon ni ni-check-circle"></em> Tassista aggiunto <strong>con successo</strong>
+                </div>
+            </div>
+        <?php } elseif (isset($completato) && $completato == 'update_ok') { ?>
+            <div class="example-alert">
+                <div class="alert alert-success alert-icon">
+                    <em class="icon ni ni-check-circle"></em> Tassista aggiornato <strong>con successo</strong>
+                </div>
+            </div>
+        <?php } elseif (isset($completato) && $completato == 'delete_ok') { ?>
+            <div class="example-alert">
+                <div class="alert alert-success alert-icon">
+                    <em class="icon ni ni-check-circle"></em> Tassista eliminato <strong>con successo</strong>
+                </div>
+            </div>
+        <?php } ?>
         <div class="card-inner">
-            <table class="datatable-init nk-tb-list nk-tb-ulist" data-auto-responsive="false">
+            <?php
+            $th = array_keys($content_tabella[0]);
+            ?>
+            <table class="datatable-init table">
                 <thead>
-                    <tr class="nk-tb-item nk-tb-head">
-                        <th class="nk-tb-col">
-                            <span class="sub-text">Nome</span>
-                        </th>
-                        <th class="nk-tb-col tb-col-md">
-                            <span class="sub-text">C.F.</span>
-                        </th>
-                        <th class="nk-tb-col tb-col-lg">
-                            <span class="sub-text">Associato</span>
-                        </th>
-                        <th class="nk-tb-col nk-tb-col-tools text-end">
-                        </th>
+                    <tr>
+                        <?php
+                        foreach ($th as $k => $v):
+                            if ($v == "id") {
+                                $class = "nk-tb-col tb-col-md";
+                            } else {
+                                $class = "nk-tb-col tb-col-lg";
+                            }
+                            ?>
+                            <th class="<?php echo $class; ?>"><?php echo $v; ?></th>
+                        <?php endforeach; ?>
+                        <th class="nk-tb-col nk-tb-col-tools text-end"></th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($tassisti as $t) { ?>
-                        <tr class="nk-tb-item">
-                            <td class="nk-tb-col">
-                                <div class="user-card">
-                                    <div class="user-avatar bg-dim-primary d-none d-sm-flex">
-                                        <span><?php echo substr($t['nome'], 0, 1) . substr($t['cognome'], 0, 1) ?></span>
-                                    </div>
-                                    <div class="user-info">
-                                        <span class="tb-lead">
-                                            <?php echo $t['nome'] . ' ' . $t['cognome'] ?> <span
-                                                class="dot dot-success d-md-none ms-1"></span>
-                                        </span>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="nk-tb-col tb-col-md">
-                                <span><?php echo $t['cf'] ?></span>
-                            </td>
-                            <td class="nk-tb-col tb-col-lg">
-                                <span class="tb-status text-<?php if ($t['associato'] == 'si') {
-                                    echo 'success';
-                                } else {
-                                    echo 'danger';
-                                } ?>">
-                                    <?php echo $t['associato'] ?>
-                                </span>
-                            </td>
+                    <?php foreach ($content_tabella as $k => $v): ?>
+                        <tr>
+                            <?php foreach ($v as $k2 => $v2): ?>
+                                <td>
+                                    <?php
+                                    // Controlla se il valore è una data valida
+                                    if (strtotime($v2)) {
+                                        // Crea un oggetto DateTime dal valore e stampa nel formato desiderato
+                                        $data = new DateTime($v2);
+                                        echo $data->format('d/m/Y');
+                                    } else {
+                                        // Stampa il valore originale se non è una data
+                                        echo $v2;
+                                    }
+                                    ?>
+                                </td>
+                            <?php endforeach; ?>
                             <td class="nk-tb-col nk-tb-col-tools">
                                 <ul class="nk-tb-actions gx-1">
                                     <li>
-                                        <a onClick="apriModal('Aggiorna Tassista','Gestione Tassisti','user/form_update_tassisti','<?php echo $t['id'] ?>')"
-                                            class="btn btn-primary">Modifica</a>
-                                    </li>
-                                    <li>
-                                        <form method="POST" action="/admin/tassisti">
-                                            <input type="hidden" name="delete" value="<?php echo $t['id'] ?>">
-                                            <button type="submit" class="btn btn-danger">Elimina</button>
-                                        </form>
+                                        <div class="drodown">
+                                            <a class="dropdown-toggle btn btn-icon btn-trigger"
+                                                data-bs-toggle="dropdown"><em class="icon ni ni-more-h"></em></a>
+                                            <div class="dropdown-menu dropdown-menu-end">
+                                                <ul class="link-list-opt no-bdr">
+                                                    <li>
+                                                        <a style="cursor: pointer;"
+                                                            onClick="apriModal('Modifica Tassisti','Gestione Tassisti','user/form_tassista','<?php echo $v['id']; ?>')">
+                                                            <em class="icon ni ni-shield-star"></em>
+                                                            <span>Info Tassista</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="<?php echo $serp; ?>?action=delete&id=<?php echo $v['id']; ?>"
+                                                            onclick="return confermaDelete();">
+                                                            <em class="icon ni ni-shield-star"></em>
+                                                            <span>Cancella</span>
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
                                     </li>
                                 </ul>
                             </td>
                         </tr>
-                        <!-- .nk-tb-item  -->
-                    <?php } ?>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
+            <br>
             <div class="center card-footer" style="background-color: #fff; border-top:none; margin-top:1.5rem;">
-                <a onClick="apriModal('Nuovo Tassista','Gestione Tassisti','user/form_insert_tassisti','new')"
+                <a onClick="apriModal('Nuovo Tassista','Gestione tassisti','user/form_tassista','new')"
                     class="btn btn-dim btn-warning">Aggiungi <?php echo $h2; ?></a>
             </div>
         </div>

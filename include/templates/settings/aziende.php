@@ -22,7 +22,8 @@
                                     </div>
                                     <div class="card-inner">
                                         <?php 
-                                            $th=array_keys($content[0]);
+                                            if(isset($content) && $content!=array()):
+                                                $th=array_keys($content[0]);
                                         ?>
                                         <table class="datatable-init table">
                                             <thead>
@@ -87,6 +88,9 @@
                                             <?php endforeach; ?>
                                             </tbody>
                                         </table>
+                                        <?php
+                                            endif;
+                                        ?>
                                     </div>
                                     <div class="center card-footer" style="background-color: #fff; border-top:none; margin-top:1.5rem;">
                                     </div>
