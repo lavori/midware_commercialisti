@@ -277,6 +277,7 @@
         });
         /*Route user*/
         $router->addRoute('/users', function () use ($database, $dominio, $titolo, $apps, $menu)  {
+            $delete='';
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if($_POST['tipo_action']=="new"){
                     if($_POST['pwd']==$_POST['pwd2']){
@@ -302,7 +303,7 @@
             if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 if (isset($_GET['action']) && $_GET['action'] === "delete") {
                     // Verifica se ci sono utenti attivi con quel ruolo
-                    $activeUsers = $database->select('users', '*', [
+                    /*$activeUsers = $database->select('users', '*', [
                         'ruolo' => $_GET['id'],
                         'status' => 'attivo' // Presupponendo che 'status' sia il campo per identificare gli utenti attivi
                     ]);
@@ -312,7 +313,11 @@
                         $message= "Ruolo eliminato con successo.";
                     } else {
                         $message= "Impossibile eliminare: ci sono utenti attivi con questo ruolo.";
-                    }
+                    }*/
+
+                    $id = $_GET["id"];
+                    $database->delete("users", "id= ".$id);
+                    $delete="ok";
                 }
             }
             $query_utenti  ="SELECT 
@@ -341,6 +346,7 @@
                 'h1' => 'CRM di gestione aziendale',
                 'h2' => 'Utenti',
                 'date' => array(),
+                'delete'=> $delete,
                 'content' => $contenuto
             ];
             $result = render('user/users', $content);

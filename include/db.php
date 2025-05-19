@@ -95,7 +95,7 @@ class Database {
         if ($where) {
             $query .= " WHERE " . (is_array($where) ? $this->buildWhereClause($where) : $where);
         }
-
+        
         $result = $this->connection->query($query);
 
         if (!$result) {

@@ -99,14 +99,10 @@ $database->disconnect();
     <div class="form-group">
         <label class="form-label" for="status">Stato</label>
         <div class="form-control-wrap">
-            <select class="form-select js-select2" name="id_aziende[]" multiple
+            <select class="form-select js-select2" name="status" id="status"
                 data-placeholder="Seleziona opzioni multiple">
-                <?php
-                foreach ($aziende as $azienda) {
-                    $selected = in_array($azienda['id'], $id_aziende) ? ' selected="selected"' : '';
-                    echo '<option value="' . htmlspecialchars($azienda['id']) . '"' . $selected . '>' . htmlspecialchars($azienda['ragione_sociale']) . '</option>';
-                }
-                ?>
+                <option value="attivo" <?php if ($utente['status'] == '1') echo 'selected'; ?>>Attivo</option>
+                <option value="disattivo" <?php if ($utente['status'] == '0') echo 'selected'; ?>>Non Attivo</option>
             </select>
         </div>
     </div>
