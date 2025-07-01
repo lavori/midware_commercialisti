@@ -10,24 +10,54 @@
                 // OTP corretto, autentica l'utente
                 $_SESSION['autorizzato'] = 'ok';
                 unset($_SESSION['OTP']); // Rimuove l'OTP per sicurezza
-        
+                
+                // Aggiorna last_login dopo OTP corretto
+                require_once('./include/config.php'); // Necessario per $host, $username, etc.
+                require_once('./include/db.php');     // Necessario per la classe Database
+                try {
+                    $database = new Database($host, $username, $password, $db);
+                    $database->connect();
+                    $dataUpdate = ["last_login" => "NOW()"]; // Assicurati che la classe Database gestisca NOW() come funzione SQL
+                    // Assicurati che $_SESSION['utente']['id'] sia disponibile e corretto
+                    if (isset($_SESSION['utente']['id'])) {
+                        $whereUpdate = "id = " . (int)$_SESSION['utente']['id'];
+                        $database->update("users", $dataUpdate, $whereUpdate);
+                    }
+                    $database->disconnect();
+                } catch (Exception $e) {
+                    // Logga l'errore, ma procedi comunque con il login dato che l'OTP era corretto
+                    error_log("2FA - Failed to update last_login for user ID " . (isset($_SESSION['utente']['id']) ? $_SESSION['utente']['id'] : 'N/A') . ": " . $e->getMessage());
+                }
+
                 // Reindirizza alla pagina riservata
                 if($_SESSION['ruolo']=="Operatore"){
                     header("Location: /app"); exit(); 
                 } else {
                     header("Location: /admin"); exit(); 
                 }
-            } elseif($_GET['newcode']==1){
+            } elseif(isset($_GET['newcode']) && $_GET['newcode']==1){ // Controlla se newcode è settato
                 unset($_SESSION['OTP']); // Rimuove l'OTP per sicurezza
                 $otp = rand(100000, 999999); // Genera un codice OTP casuale a 6 cifre
                 $_SESSION['OTP'] = $otp;
-                inviaOTP($_SESSION['users']['email'], $otp);
+                // Assicurati che $_SESSION['utente']['email'] sia la variabile corretta
+                if (isset($_SESSION['utente']['email'])) {
+                    inviaOTP($_SESSION['utente']['email'], $otp);
+                    $message = "Un nuovo codice OTP è stato inviato alla tua email.";
+                } else {
+                    $message = "Errore: Impossibile inviare un nuovo codice OTP. Email non trovata.";
+                    // Considera un reindirizzamento o un messaggio di errore più specifico
+                }
             } else {
                 $message = "Codice OTP non corretto. Riprova.";
             } 
         }
     } elseif ($_SESSION['autorizzato']=="ok"){
-        header('Location:/admin'); exit();
+        // Se l'utente è già autenticato, reindirizza in base al ruolo
+        if(isset($_SESSION['ruolo']) && $_SESSION['ruolo']=="Operatore"){
+            header('Location:/app'); exit();
+        } else {
+            header('Location:/admin'); exit();
+        }
     } else{
         header('Location:login.php'); exit();
     }

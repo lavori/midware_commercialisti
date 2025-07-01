@@ -26,46 +26,78 @@
             $database = new Database($host, $username, $password, $db); 
             $database->connect(); 
             // Query login
-            $utenti = $database->select("users", "*", "user like '".$_POST['user']."'");
+            $sanitizedUser = $_POST['user']; // Placeholder: applicare sanificazione o usare prepared statements
+            $utenti = $database->select("users", "*", "user = '".$sanitizedUser."'");
             if (isset($utenti) && count($utenti)>0 && MD5($_POST['password'])==$utenti[0]['pwd']){
                 //echo $utenti[0]['pwd']; 
-               $data = [
-                   "last_login" => "NOW()"
-               ];
-               $where = "id = ".$utenti[0]['id'];
-               //$database->update("users", $data, $where);
-               $_SESSION['utente'] = $utenti[0];
-               $ruolo = $database->select("rules", "*", "id = '".$utenti[0]['ruolo']."'");
-               $_SESSION['ruolo'] = $ruolo[0]['ruolo'];
-               $_SESSION['permessi'] = $ruolo[0]['permessi'];
+                
+                $_SESSION['utente'] = $utenti[0];
+                $ruolo = $database->select("rules", "*", "id = '".$utenti[0]['ruolo']."'");
+                $_SESSION['ruolo'] = $ruolo[0]['ruolo'];
+                $_SESSION['permessi'] = $ruolo[0]['permessi'];
                
-               $_SESSION['OTP']=rand(100000,999999);
-               //echo "<pre>"; print_r($_SESSION); echo "</pre>"; //exit();
-               if($_SESSION['utente']['status']=='attivo' && isset($_SESSION['utente']['email']) && $_SESSION['utente']['email']!=""){
-                    $_SESSION['autorizzato']="OTP"; 
-                    inviaOTP($_SESSION['utente']['email'], $_SESSION['OTP']); 
-                    $database->disconnect();
-                    header("Location: ./2fa.php"); exit();
-                } elseif($_SESSION['utente']['abilitazione']==1 && (!isset($_SESSION['users']['email']) || $_SESSION['users']['email']=="")){  
-                    $_SESSION['autorizzato']="ok"; 
-                    $database->disconnect();
-                    if($_SESSION['ruolo']=="Operatore"){
-                        header("Location: /app"); exit(); 
+                if ($_SESSION['utente']['status'] == 'attivo') {
+                    $loginSuccessful = false;
+                    $redirectTo2FA = false;
+
+                    // Condizione per bypassare 2FA a causa di 'abilitazione' e assenza di email
+                    $bypass2FAdueToAbilitazione = ($_SESSION['utente']['ruolo'] == 1 && (!isset($_SESSION['utente']['email']) || $_SESSION['utente']['email'] == ""));
+
+                    if ($bypass2FAdueToAbilitazione) {
+                        $_SESSION['autorizzato'] = "ok";
+                        $loginSuccessful = true;
+                    } else if (isset($_SESSION['utente']['email']) && $_SESSION['utente']['email'] != "") {
+                        // L'utente ha un'email, la 2FA è potenzialmente attiva
+                        $lastLoginDate = $_SESSION['utente']['last_login'];
+                        $fifteenDaysAgoTimestamp = strtotime('-15 days');
+                        // strtotime ritorna false in caso di fallimento, null se la data è vuota/invalida
+                        $lastLoginTimestamp = $lastLoginDate ? strtotime($lastLoginDate) : null; 
+                        
+                        if ($lastLoginTimestamp === null || $lastLoginTimestamp === false || $lastLoginTimestamp > $fifteenDaysAgoTimestamp) {
+                            // Ultimo login più vecchio di 15 giorni, o non impostato/invalido: bypassa 2FA
+                            $_SESSION['autorizzato'] = "ok";
+                            $loginSuccessful = true;
+                        } else {
+                            // Ultimo login recente: procedi con 2FA
+                            $_SESSION['autorizzato'] = "OTP";
+                            $_SESSION['OTP'] = rand(100000, 999999); // Considerare random_int() per maggiore sicurezza
+                            inviaOTP($_SESSION['utente']['email'], $_SESSION['OTP']);
+                            $redirectTo2FA = true;
+                        }
                     } else {
-                        header("Location: /admin"); exit(); 
+                        // Utente attivo, ma senza email per 2FA e non 'abilitato' per bypassare.
+                        $message = "Configurazione di sicurezza incompleta. Impossibile procedere con l'accesso.";
                     }
-                }
-               $database->disconnect();
-               header("Location: ./"); 
+                    if ($loginSuccessful) {
+                        // Aggiorna last_login per login diretto o bypass 2FA
+                        $dataUpdate = ["last_login" => "NOW()"]; // Assicurati che la classe Database gestisca NOW() come funzione SQL
+                        $whereUpdate = "id = " . (int)$_SESSION['utente']['id'];
+                        $database->update("users", $dataUpdate, $whereUpdate);
+
+                        $database->disconnect();
+                        if ($_SESSION['ruolo'] == "Operatore") {
+                            header("Location: /app"); exit();
+                        } else {
+                            header("Location: /admin"); exit();
+                        }
+                    } elseif ($redirectTo2FA) {
+                        // last_login sarà aggiornato in 2fa.php dopo la verifica OTP
+                        $database->disconnect();
+                        header("Location: ./2fa.php"); exit();
+                    } else {
+                        // Login non autorizzato (es. status non attivo, o problema di configurazione)
+                        if(isset($database)) $database->disconnect();
+                    }
+                } else { // User status not 'attivo'
+                    $message = "Utente non attivo.";
+                    if(isset($database)) $database->disconnect();
+                } 
             } else{ 
                $message="USER o PASSWORD errate si prega di riprovare"; 
                if(isset($database)) $database->disconnect(); // Disconnetti se l'oggetto è stato creato
             }
         } catch (Exception $e) {
             $message = "Si è verificato un errore durante il tentativo di login. Si prega di riprovare più tardi. Dettaglio: " . $e->getMessage();
-            // Potresti voler loggare $e->getMessage() per debug, ma non mostrarlo direttamente all'utente in produzione per motivi di sicurezza.
-            // Per l'utente, un messaggio generico è spesso preferibile. Ad esempio:
-            // $message = "Errore di sistema. Impossibile connettersi al database. Riprova più tardi.";
         }
     } else if($_POST && isset($_POST['action']) && $_POST['action']=="reset"){ 
        // Query login 
