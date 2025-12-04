@@ -1,0 +1,36 @@
+# ============================
+# 1. Librerie da NON versionare
+# ============================
+
+vendor/
+fpdf/
+pdf-merge/
+uploads/
+include/cv_tutor/
+
+# ============================
+# 2. File degli utenti (da ignorare)
+# ============================
+
+uploads/**/*.pdf
+uploads/**/*.rar
+uploads/**/*.zip
+
+# ============================
+# 3. Logs / Cache
+# ============================
+
+*.log
+*.cache
+tmp/
+temp/
+
+# ============================
+# 4. IDE / OS
+# ============================
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
